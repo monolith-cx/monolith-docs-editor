@@ -11,7 +11,7 @@ echo "=== Monolith Docs startup $(date) ==="
 
 APP_DIR="/opt/monolith-docs"
 DEPLOY_STATE_DIR="${APP_DIR}/.deploy-state"
-REPO_URL="https://github.com/altus-labs-dev/monolith-docs.git"
+REPO_URL="https://github.com/altus-labs-dev/monolith-docs-editor.git"
 
 apt_install() {
   apt-get update -y

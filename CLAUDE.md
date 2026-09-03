@@ -1,4 +1,6 @@
-# Project Conventions — Monolith Docs
+# Project Conventions — Monolith Docs Editor
+
+> **Repo split (2026-09-02):** renamed from `monolith-docs` to `monolith-docs-editor`. Scope is the AGPL OnlyOffice headless editing service and its deploy substrate only. Product, e-signature, Platform SSO, tRPC, and the Next.js frontend now live in the private `monolith-docs` repo; do not build them here. The `standalone-app` initiative below must be re-scoped before it resumes. Origin is Forgejo (`git.altuslabs.dev:2222`); GitHub is a public push mirror.
 
 Monolith Docs is a standalone AGPL document-editing service built around OnlyOffice DocumentServer with a thin Fastify API. Consuming products integrate over API; they do not embed proprietary logic into this repo.
 

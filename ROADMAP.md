@@ -2,6 +2,10 @@
 
 High-level feature and delivery status lives here. Detailed execution state lives in the linked initiative docs under `.ai/`.
 
+## Repo Split (2026-09-02)
+
+This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. The Monolith Docs product (e-signature, customer app, Platform SSO, tRPC, Next.js) moved to the private `monolith-docs` repo under the `esignature-platform` initiative (parent ESIG in Platform). The Standalone App initiative below needs re-scoping: Phase 0 (workspace restructure and headless parity) stays here; Phases 1 through 6 are superseded by the new repo and should be archived or reduced to editor-service work.
+
 ## Active
 
 ### Standalone App
