@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { resolveDownloadUrl, transferToGcs } from '../storage.js';
 import { validateCallbackDomain } from '../consumers.js';
+import { hostOf, keyRef, safeErrorText } from '../log-safety.js';
 
 interface OpenRequestBody {
   fileUrl: string;
@@ -144,8 +145,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     try {
       resolvedFileUrl = await resolveDownloadUrl(fileUrl);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'unknown error';
-      app.log.error({ fileUrl, error: message }, 'Failed to resolve file URL');
+      const message = safeErrorText(err instanceof Error ? err.message : 'unknown error');
+      req.log.error({ fileHost: hostOf(fileUrl), error: message }, 'Failed to resolve file URL');
       return reply.status(400).send({ error: `Failed to resolve file URL: ${message}` });
     }
 
@@ -164,7 +165,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       lastActivityAt: now,
     });
 
-    app.log.info({ key, consumerId: req.consumerId, fileName: resolvedFileName, userId: user.id }, 'Document session created');
+    req.log.info({ keyRef: keyRef(key), consumerId: req.consumerId, userId: user.id }, 'Document session created');
 
     const editorUrl = `${config.apiPublicUrl}/editor/${key}`;
 
@@ -197,27 +198,27 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     const callbackToken = req.body.token;
     if (!isWeakSecret) {
       if (!callbackToken) {
-        app.log.warn({ url: req.url }, 'OnlyOffice callback missing JWT token');
+        req.log.warn('OnlyOffice callback missing JWT token');
         return reply.status(403).send({ error: 'Missing callback token' });
       }
       try {
         jwt.verify(callbackToken, config.onlyofficeJwtSecret);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'unknown';
-        app.log.warn({ error: message }, 'OnlyOffice callback JWT verification failed');
+        const message = safeErrorText(err instanceof Error ? err.message : 'unknown');
+        req.log.warn({ error: message }, 'OnlyOffice callback JWT verification failed');
         return reply.status(403).send({ error: 'Invalid callback token' });
       }
     }
 
     const { key, status, url, users } = req.body;
-    app.log.info({ key, status, url, users }, 'OnlyOffice callback received');
+    req.log.info({ keyRef: keyRef(key), status, downloadHost: hostOf(url), userCount: users?.length ?? 0 }, 'OnlyOffice callback received');
 
     // Status codes: https://api.onlyoffice.com/editors/callback
     // 1 = editing, 2 = ready to save, 4 = closed no changes, 6 = force save
     if ((status === 2 || status === 6) && url) {
       const session = sessions.get(key);
       if (!session) {
-        app.log.warn({ key }, 'Callback for unknown session');
+        req.log.warn({ keyRef: keyRef(key) }, 'Callback for unknown session');
         return reply.send({ error: 0 });
       }
 
@@ -233,10 +234,10 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
             session.saveTo.bucket,
             session.saveTo.object,
           );
-          app.log.info({ bucket: session.saveTo.bucket, object: session.saveTo.object }, 'Document saved to GCS');
+          req.log.info({ keyRef: keyRef(key), bucket: session.saveTo.bucket }, 'Document saved to GCS');
         } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : 'unknown error';
-          app.log.error({ error: message }, 'Failed to transfer document to GCS');
+          const message = safeErrorText(err instanceof Error ? err.message : 'unknown error');
+          req.log.error({ keyRef: keyRef(key), error: message }, 'Failed to transfer document to GCS');
           // Fall through — still notify consumer with the OnlyOffice download URL
         }
       }
@@ -259,11 +260,11 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
           });
 
           if (!callbackRes.ok) {
-            app.log.error({ callbackUrl: session.callbackUrl, status: callbackRes.status }, 'Consumer callback failed');
+            req.log.error({ keyRef: keyRef(key), callbackHost: hostOf(session.callbackUrl), status: callbackRes.status }, 'Consumer callback failed');
           }
         } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : 'unknown error';
-          app.log.error({ callbackUrl: session.callbackUrl, error: message }, 'Consumer callback error');
+          const message = safeErrorText(err instanceof Error ? err.message : 'unknown error');
+          req.log.error({ keyRef: keyRef(key), callbackHost: hostOf(session.callbackUrl), error: message }, 'Consumer callback error');
         }
       }
 

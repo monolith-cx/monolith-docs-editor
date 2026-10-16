@@ -5,6 +5,7 @@ import jwksClient from 'jwks-rsa';
 import { config } from './config.js';
 import { findConsumersByHostname, getConsumers } from './consumers.js';
 import type { Consumer, HmacAuth, JwksAuth } from './consumers.js';
+import { redactRequestPath, safeErrorText } from './log-safety.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -86,7 +87,7 @@ export const authPlugin = fp(async function authPlugin(app: FastifyInstance): Pr
     const allConsumers = getConsumers();
     if (allConsumers.length === 0) {
       if (isProduction) {
-        app.log.error('No consumers configured in production — rejecting all API requests');
+        req.log.error('No consumers configured in production — rejecting all API requests');
         return reply.status(503).send({ error: 'Service not configured' });
       }
       // Dev mode: skip auth when no consumers configured
@@ -95,7 +96,7 @@ export const authPlugin = fp(async function authPlugin(app: FastifyInstance): Pr
 
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      app.log.warn({ url: req.url, method: req.method, ip: req.ip }, 'Auth failed: missing or malformed Authorization header');
+      req.log.warn({ path: redactRequestPath(req.url), method: req.method, ip: req.ip }, 'Auth failed: missing or malformed Authorization header');
       return reply.status(401).send({ error: 'Missing Authorization header' });
     }
 
@@ -122,8 +123,8 @@ export const authPlugin = fp(async function authPlugin(app: FastifyInstance): Pr
         req.jwtPayload = payload;
         return;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'unknown';
-        app.log.debug({ consumerId: c.id, error: message }, 'HMAC verification failed, trying next consumer');
+        const message = safeErrorText(err instanceof Error ? err.message : 'unknown');
+        req.log.debug({ consumerId: c.id, error: message }, 'HMAC verification failed, trying next consumer');
       }
     }
 
@@ -137,14 +138,14 @@ export const authPlugin = fp(async function authPlugin(app: FastifyInstance): Pr
         req.jwtPayload = payload;
         return;
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'unknown';
-        app.log.debug({ consumerId: c.id, error: message }, 'JWKS verification failed, trying next consumer');
+        const message = safeErrorText(err instanceof Error ? err.message : 'unknown');
+        req.log.debug({ consumerId: c.id, error: message }, 'JWKS verification failed, trying next consumer');
       }
     }
 
     // All auth methods exhausted
-    app.log.warn(
-      { url: req.url, method: req.method, ip: req.ip, hostname, candidateCount: candidates.length },
+    req.log.warn(
+      { path: redactRequestPath(req.url), method: req.method, ip: req.ip, hostname, candidateCount: candidates.length },
       'Auth failed: no matching consumer for token',
     );
     return reply.status(401).send({ error: 'Invalid or expired credentials' });

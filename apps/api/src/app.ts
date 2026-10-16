@@ -10,14 +10,28 @@ import { authPlugin } from './auth.js';
 import { healthRoutes } from './routes/health.js';
 import { documentRoutes } from './routes/documents.js';
 import { fileRoutes } from './routes/files.js';
+import { LOG_REDACT_CENSOR, LOG_REDACT_PATHS, scrubLogArguments, serializeError, serializeRequest } from './log-safety.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProduction = config.nodeEnv === 'production';
 
-export function buildApp() {
+export interface BuildAppOptions {
+  /** Log destination; tests inject a stream to assert on real log lines. */
+  logStream?: NodeJS.WritableStream;
+}
+
+export function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({
     logger: {
       level: config.logLevel,
+      ...(options.logStream ? { stream: options.logStream } : {}),
+      redact: { paths: LOG_REDACT_PATHS, censor: LOG_REDACT_CENSOR },
+      serializers: { req: serializeRequest, err: serializeError },
+      hooks: {
+        logMethod(args, method) {
+          method.apply(this, scrubLogArguments(args) as Parameters<typeof method>);
+        },
+      },
     },
   });
 

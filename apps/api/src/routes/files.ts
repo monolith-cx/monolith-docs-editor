@@ -4,6 +4,7 @@ import { createReadStream } from 'node:fs';
 import { writeFile, mkdir, unlink, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
+import { keyRef } from '../log-safety.js';
 
 const ALLOWED_EXTENSIONS = new Set([
   // Word processing
@@ -65,7 +66,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
 
     // Validate file type
     if (!ALLOWED_EXTENSIONS.has(ext)) {
-      app.log.warn({ filename: file.filename, ext }, 'File upload rejected: unsupported file type');
+      req.log.warn({ ext }, 'File upload rejected: unsupported file type');
       return reply.status(400).send({
         error: `File type '${ext}' is not supported. Allowed types: ${[...ALLOWED_EXTENSIONS].join(', ')}`,
       });
@@ -84,7 +85,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     const fileUrl = `${config.apiInternalUrl}/api/files/${id}${ext}`;
     const publicUrl = `${config.apiPublicUrl}/api/files/${id}${ext}`;
 
-    app.log.info({ id, filename: file.filename, size: buffer.length }, 'File uploaded');
+    req.log.info({ fileRef: keyRef(id), ext, size: buffer.length }, 'File uploaded');
 
     return reply.send({ id, fileUrl, publicUrl, filename: file.filename });
   });

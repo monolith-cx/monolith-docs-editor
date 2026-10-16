@@ -49,7 +49,7 @@ function parseGcsPath(path: string): { bucket: string; object: string } {
   const cleaned = path.replace(/^gs:\/\//, '');
   const slashIndex = cleaned.indexOf('/');
   if (slashIndex === -1) {
-    throw new Error(`Invalid GCS path: ${path}`);
+    throw new Error('Invalid GCS path: expected bucket/object');
   }
   return {
     bucket: cleaned.slice(0, slashIndex),
@@ -77,11 +77,11 @@ function validateSourceUrl(url: string, allowHttp: boolean): void {
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error(`Invalid source URL: ${url}`);
+    throw new Error('Invalid source URL');
   }
 
   if (!allowHttp && parsed.protocol !== 'https:') {
-    throw new Error(`Source URL must use HTTPS in production: ${url}`);
+    throw new Error('Source URL must use HTTPS in production');
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {

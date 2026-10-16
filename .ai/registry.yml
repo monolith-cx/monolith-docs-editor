@@ -32,7 +32,7 @@ initiatives:
     parent_phase: UDOC-1
     blockers:
       - "EDIT-6 needs an editor host reachable from crm-dev (DOC-DPP is still planning) and a CRM notification receiver."
-    notes: "Drafted, plan-reviewed (attempt 2 PASS-WITH-NITS, nits applied), and owner-approved 2026-10-16 with parent amendments A1-A5. Next: EDIT-4 (log redaction). Implements UDOC-1.1-1.7 exactly (EDIT-n = UDOC-1.n): latest OnlyOffice Community and a repeatable battery re-run, named profiles, stateless per-open sessions in sealed editor URLs, signed and retried consumer notifications, drop, PDF conversion, log redaction, the panel bridge plugin, hosting, licence posture. Keeps fastmail-connect and the Connect extension working on the legacy open shape (E1) until they migrate."
+    notes: "Drafted, plan-reviewed (attempt 2 PASS-WITH-NITS, nits applied), and owner-approved 2026-10-16 with parent amendments A1-A5. EDIT-4 (log redaction) code-complete and checkpoint-reviewed 2026-10-16, not deployed; open: Cloudflare logging check (blocked: no API access), deploy and log purge (owner). Next: EDIT-1. Implements UDOC-1.1-1.7 exactly (EDIT-n = UDOC-1.n): latest OnlyOffice Community and a repeatable battery re-run, named profiles, stateless per-open sessions in sealed editor URLs, signed and retried consumer notifications, drop, PDF conversion, log redaction, the panel bridge plugin, hosting, licence posture. Keeps fastmail-connect and the Connect extension working on the legacy open shape (E1) until they migrate."
 
   - id: deploy-pipeline-parity
     title: "Deploy Pipeline Parity For Standalone-Era Docs"

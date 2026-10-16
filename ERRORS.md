@@ -4,6 +4,16 @@ Durable follow-up log for concrete errors found during sessions and left unresol
 
 ## Unresolved
 
+- [ ] 2026-10-16 12:11 PDT - `infrastructure/nginx/monolith-docs.conf` (error log) - nginx's error log records the raw request line, query string included, on upstream errors
+  - Observed via: running the EDIT-4 nginx config in an `nginx:1.27-alpine` container with no upstreams and requesting `/editor/<key>`, `/cache/files/...?md5=...`, `/downloadas/<key>` and similar: the access log was masked (0 secrets) while `monolith-docs.error.log` held the full request line for all 15 probes.
+  - Impact: on a production upstream failure (API or DocumentServer down, timeouts), the error log keeps editor keys (today the editor capability) and DocumentServer's signed cache URLs.
+  - Left unresolved because: nginx cannot format the error log; lowering it to `crit` would lose upstream diagnostics. Mitigated by the EDIT-4.3 purge and by EDIT-2 (keys stop being capabilities); revisit if a log shipper is added (filter there).
+
+- [ ] 2026-10-16 12:11 PDT - DocumentServer container logs (`docker-compose.yml:11`, volume `onlyoffice-log` → `/var/log/onlyoffice`) - DocumentServer's own logs carry document keys and request lines
+  - Observed via: reading the `onlyoffice/documentserver:8.3` image's configuration (EDIT-4 checkpoint review fix): its internal nginx has `access_log off` (`ds-common.conf:22`) but writes `/var/log/onlyoffice/documentserver/nginx.error.log`, and its services log at WARN with `%X{DOCID}` (the document key) in every line (`log4js/production.json`). Both persist in the `onlyoffice-log` volume.
+  - Impact: today's document key is the editor page's capability, so a WARN line or an internal nginx error line in that volume can reopen a live editor session until the key's session expires.
+  - Left unresolved because: DocumentServer's logging is configured inside the image, which UDOC ships unmodified (EDIT-1 ADR); EDIT-2 removes the key's capability (sealed tokens), and EDIT-4.3's purge includes this volume. Re-check the pinned release's log config at EDIT-1.
+
 - [ ] 2026-10-16 09:20 PDT - `apps/api/src/routes/documents.ts:182`, `:194-217` - OnlyOffice callback JWT is not bound to the callback body, and the editor page hands out a token signed with the same secret
   - Observed via: code reading during the EDIT plan review (udoc-editor-service, review attempt 1, 2026-10-16). `GET /editor/:key` signs the editor config with `ONLYOFFICE_JWT_SECRET` and embeds it in the page; the callback route only checks that `req.body.token` verifies under that secret (no algorithm pin, no claim check, no comparison with the body) and then trusts `req.body.key`, `status`, and `url`.
   - Impact: anyone holding an editor URL can POST a forged status-2 callback with an attacker-chosen `url`: the service then fetches it (`transferToGcs` when `saveTo` is set) and forwards it to the consumer as a save. Consumers that trust the notification can have a working document replaced.
@@ -14,12 +24,34 @@ Durable follow-up log for concrete errors found during sessions and left unresol
   - Impact: any authenticated consumer can read (and, via `saveTo`, overwrite) any object the service account can reach, including another consumer's files; a crafted hostname containing `://api:` bypasses the SSRF check.
   - Left unresolved because: planning-only session; fix is planned in EDIT-2.3 (profile shapes take validated https signed URLs only; the GCS path form, `saveTo`, and the substring exemption are removed) and EDIT-3.1 (a resolving URL validator).
 
+- [ ] 2026-10-16 00:40 PDT - `apps/api/src/routes/documents.ts:250-258`, `apps/api/src/auth.ts:75` - Save notification to the consumer's `callbackUrl` is unsigned
+  - Observed via: code reading during the UDOC amendment plan review (Platform `unified-document-authoring`, 2026-10-16). The service POSTs `{ status, downloadUrl, key, users }` with only `Content-Type`; nothing lets the consumer tell the service's call from a forged one. The OnlyOffice → service JWT check is also skipped when `ONLYOFFICE_JWT_SECRET` is unset or `secret` (`documents.ts:195-197`).
+  - Impact: a consumer that trusts the body can be made to replace a working document with an attacker-chosen file and to fetch an attacker-chosen `downloadUrl` (SSRF from the consumer's network). Every consumer is exposed by design.
+  - Left unresolved because: outside this session's scope (planning only); fix is planned as UDOC-1.2 (signed consumer callbacks, key binding, `downloadUrl` host allowlist).
+
+- [ ] 2026-10-16 00:40 PDT - `apps/api/src/routes/documents.ts:413`, `:424` - Editor page interpolates the document title and the editor config into HTML and an inline script without escaping
+  - Observed via: code reading during the UDOC amendment plan review (2026-10-16). `<title>${opts.config.document.title}…` and `...${JSON.stringify(opts.config)}` inside `<script>`; `title` comes from the consumer's `fileName`, which can be user-entered text.
+  - Impact: a title containing `</title><script>…` or `</script>` runs script on the editor origin (stored XSS per session), which can read anything the editor page holds.
+  - Left unresolved because: planning-only session; fix is planned as UDOC-1.2 (HTML-escape the title; escape `<`, `>`, `&`, U+2028/U+2029 in the inline JSON).
+
 - [ ] 2026-04-19 11:30 MDT - `apps/api/src/routes/files.ts:58-90` - Upload handler accepts any bytes as long as the filename extension is allowlisted; no magic-byte validation
   - Observed via: Fastmail Connect preview pipeline. Worker at `connect-api` was posting Fastmail's `/login/` HTML page (7,407 bytes) to `POST /api/files/upload` with filenames like `1 - DSI VIP Pricing.xlsx` and `Schmittle_Settlement_Offer_Letter.docx`. Docs accepted and stored each one at `/tmp/monolith-docs-uploads/<uuid>.<ext>`. OnlyOffice fetched the bytes and failed with "file content does not match the file extension" on xlsx or rendered the login HTML inside the Word viewer on docx. Confirmed by dumping stored files on `monolith-docs` VM — every recent upload is the identical 7,407-byte `<!DOCTYPE html>` blob.
   - Impact: Silent garbage-in/garbage-out at the Docs boundary. When a consumer's upload pipeline breaks (auth failure, wrong URL, redirect to a login page, etc.), Docs stores whatever bytes it gets and the failure only surfaces two hops later inside OnlyOffice with an opaque error. Wastes debugging time and hides upstream defects.
   - Left unresolved because: Root cause of the current incident was Worker-side (fixed in the fastmail-connect repo). Docs-side hardening is a separate, non-urgent change that should validate at least the minimum sniff for supported formats: `PK\x03\x04` for OOXML (docx/xlsx/pptx), `%PDF` for PDF, `{\rtf` for RTF, etc., and reject with a clear 400 when the body doesn't match the declared extension. Also worth considering: reject `text/html` or `application/json` request bodies outright at the multipart boundary.
 
 ## Resolved
+
+- [x] 2026-10-15 23:20 PDT - `apps/api/src/routes/documents.ts:213` - OnlyOffice callback handler logs the callback `url` at info level
+  - Observed via: running a scratch copy of `apps/api` during the contract-sections spike (`docs/spikes/2026-10-contract-sections.md`); the `OnlyOffice callback received` log line carried the full DocumentServer download URL for the edited document on every status-2/6 callback.
+  - Impact: that URL fetches the user's saved document without further auth until DocumentServer's cache expires, so anyone with log access (or a log sink) can retrieve contract contents. Contracts are customer data.
+  - Left unresolved because: outside the spike's scope (spike was read-only on this repo apart from its findings doc); fix is to drop `url` from the log fields or log only its host.
+  - Resolved: 2026-10-16 12:11 PDT - fixed in code by EDIT-4 (udoc-editor-service, UDOC-1.4), **not yet deployed**: call sites log hosts and key/file fingerprints only (`log-safety.ts` `hostOf`, `keyRef`), error text and every log message string are URL-scrubbed (`safeErrorText`, the `logMethod` hook), pino redacts URL-bearing fields, the `err` serializer drops extra fields, and the request serializer logs an allowlisted or masked path; raw-log tests in `apps/api/src/log-safety.test.ts`. Lines already written to production logs stay there until the EDIT-4.3 purge after deploy (owner-approved action).
+
+- [x] 2026-10-16 00:40 PDT - `apps/api/src/routes/documents.ts:148`, `:262`, `:266` - Signed file URLs and consumer callback URLs are logged
+  - Observed via: code reading during the UDOC amendment plan review (2026-10-16). `fileUrl` (a signed download link) is logged on resolve failure; `callbackUrl` on consumer callback failure and error. Related to the `:213` entry below.
+  - Impact: a signed `fileUrl` is a bearer link to customer document content for its lifetime; a callback URL that carries a secret would leak it.
+  - Left unresolved because: planning-only session; fix is planned as UDOC-1.4 (redact `fileUrl`, `callbackUrl`, `downloadUrl`, `saveTo`; log hosts only; redact `req.url` for the callback route).
+  - Resolved: 2026-10-16 12:11 PDT - fixed in code by EDIT-4 (udoc-editor-service, UDOC-1.4), **not yet deployed**: call sites log hosts and key/file fingerprints only (`log-safety.ts` `hostOf`, `keyRef`), error text and every log message string are URL-scrubbed (`safeErrorText`, the `logMethod` hook), pino redacts URL-bearing fields, the `err` serializer drops extra fields, and the request serializer logs an allowlisted or masked path; raw-log tests in `apps/api/src/log-safety.test.ts`. Lines already written to production logs stay there until the EDIT-4.3 purge after deploy (owner-approved action).
 
 - [x] 2026-04-18 12:30 MDT - `https://app.monolithdocs.com/` - Cloudflare 522 "Origin connection timed out" on every request
   - Observed via: `curl -I https://app.monolithdocs.com/health` and `curl https://app.monolithdocs.com/api/status` from an external network. Response: `HTTP/1.1 522` with `CF-RAY` header and `error code: 522` body. Timeout ~15s.

@@ -3,7 +3,7 @@
 **Initiative ID:** udoc-editor-service
 **Abbreviation:** EDIT
 **Owner:** josh
-**Status:** Active — drafted 2026-10-16; plan review attempt 1 **FAIL** (3 High, 12 Medium, 8 Nit), attempt 2 **PASS-WITH-NITS** (9 Medium, 7 Nit; `reviews/review-plan-attempt-{1,2}.md`), every finding applied the same day; **owner-approved 2026-10-16** with parent amendments A1–A5; moved to `active/`. Next: EDIT-4
+**Status:** Active — drafted 2026-10-16; plan review attempt 1 **FAIL** (3 High, 12 Medium, 8 Nit), attempt 2 **PASS-WITH-NITS** (9 Medium, 7 Nit; `reviews/review-plan-attempt-{1,2}.md`), every finding applied the same day; **owner-approved 2026-10-16** with parent amendments A1–A5; moved to `active/`. EDIT-4 code-complete and checkpoint-reviewed 2026-10-16 (`reviews/review-edit-4-attempt-{1,2,3}.md`: FAIL, PASS-WITH-NITS, PASS-WITH-NITS; every finding applied), not deployed. Next: EDIT-1
 **Last updated:** 2026-10-16
 **Guidance:** [guidance.md](./guidance.md)
 **Parent ecosystem initiative:** `unified-document-authoring` (UDOC), phase UDOC-1 — `~/dev/monolith-platform/.ai/ecosystem/initiatives/active/unified-document-authoring/plan.md`
@@ -18,7 +18,7 @@ Estimates are engineering weeks for one senior developer working with Claude.
 | Phase | Parent | Title | Status | Depends on |
 |---|---|---|---|---|
 | EDIT-0 | — | Charter, re-scope of `standalone-app`, plan review | Done 2026-10-16 | — |
-| EDIT-4 | UDOC-1.4 | Log redaction (scheduled first: it closes live leaks) | Pending | EDIT-0 |
+| EDIT-4 | UDOC-1.4 | Log redaction (scheduled first: it closes live leaks) | Code-complete, checkpoint review PASS-WITH-NITS 2026-10-16 (attempt 3, nits applied); not deployed; open: Cloudflare check (blocked), deploy and log purge (owner) | EDIT-0 |
 | EDIT-1 | UDOC-1.1 | Upgrade and the extended battery re-run | Pending | EDIT-0 |
 | EDIT-2 | UDOC-1.2 | Profiles, stateless sessions, signed notifications, drop, the editor page | Pending | EDIT-1 (pinned release, measured retry behaviour), EDIT-4; UDOC-2.1 drafted alongside; `standalone-app` Phase 0 closed or re-baselined before EDIT-2 deploys |
 | EDIT-3 | UDOC-1.3 | PDF conversion | Pending | EDIT-1, EDIT-2 (consumer registry, URL validator) |
@@ -92,6 +92,7 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 - ConvertService output for a document with pending tracked changes and comments.
 - The command service's drop with edits since the last save (status 2 expected) and without (status 4 expected), given the users from status-1 notifications.
 - Probe plugins used here live under `scripts/editor-battery/` and are never served by the API.
+- DocumentServer's own log configuration on the pinned release (internal nginx access and error logs, the services' log level and pattern; 8.3 logs `DOCID` at WARN), recorded in the ADR.
 - DocumentServer's own request filtering (private-address refusal for `document.url` and conversion sources), its `maxDownloadBytes` limit, and its cache retention for edited and converted files.
 - A version DOCX opened, edited, and saved in **Word desktop** and reopened in OnlyOffice. Needs a machine with Word; record who ran it and where. If it cannot be run, EDIT-1 stays open unless Josh waives this item in writing (recorded here).
 
@@ -198,13 +199,17 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 
 ### EDIT-4.2 Redaction configuration
 - Add a pino `redact` configuration in `app.ts` covering `url`, `fileUrl`, `callbackUrl`, `downloadUrl`, `saveTo`, `sourceUrl`, `uploadUrl` at the top level and nested (`*.url` and the like); serialize `req.url` without path or query for the callback route, `/editor/*`, and `/plugins/udoc-bridge/s/*`.
-- nginx: a `log_format` that masks the path for `/editor/` and `/plugins/udoc-bridge/s/` on `app.monolithdocs.com`'s server block. Cloudflare: record whether request logging (Logpush or similar) is enabled for the zone and what it captures; masking there is a follow-up if it is.
+- nginx: a `log_format` that logs an allowlisted path (the health check and DocumentServer's static asset routes) and masks every other path to its first segment, with no query string and no Referer, on `app.monolithdocs.com`'s server blocks; an explicit `error_log … error`. Cloudflare: record whether request logging (Logpush or similar) is enabled for the zone and what it captures; masking there is a follow-up if it is.
+- A pino `logMethod` hook scrubs URLs from every string argument (Fastify logs a 500's raw error message as the line's `msg`), and an `err` serializer keeps only type, scrubbed message and stack, and codes.
+- Status (2026-10-16): done in code and tests. nginx config validated (`nginx -t`) and exercised in an `nginx:1.27-alpine` container: 15 probes including `/editor/`, `/cache/files/`, `/doc/<key>/`, `/downloadas/`, `/printfile/`, `/upload/`, `/downloadfile/`, `//editor/` gave 0 secrets in the access log. **Cloudflare: Blocked** — this session has no Cloudflare API access (the connector is unauthorized), so whether the zone has Logpush or request logging, and what it captures, is unrecorded; Josh or a session with Cloudflare access must check the `monolithdocs.com` zone. `cloudflared` runs at its default log level (`tunnel-config.yml` sets none), which does not log request URLs.
 
 ### EDIT-4.3 Purge (owner-approved action)
-- With Josh's approval: rotate and purge the production and dev VMs' container logs (and any sink they feed) that hold signed URLs, after the fix is deployed.
+- With Josh's approval, after the fix is deployed: rotate and purge, on the production and dev VMs, the API container's logs, the host nginx logs (`/var/log/nginx/`, including the error log), and DocumentServer's `onlyoffice-log` volume (`/var/log/onlyoffice`: its internal nginx error log and its WARN lines carrying `DOCID`), plus any sink they feed.
+- Status: Pending (owner-approved action).
 
 ### EDIT-4.4 Acceptance (parent UDOC-1.4)
-- Tests capture raw log output for an open failure, a callback failure, and a successful save, and a scan of the raw text finds no `http://` or `https://` URL with a path or query.
+- Status (2026-10-16): items 1 and 2 met in code (54 API tests, typecheck, lint; `ERRORS.md` entries `[x]` with `Resolved:` notes, marked not yet deployed); item 3 is a forward obligation on EDIT-2 and EDIT-3. EDIT-4 as a whole stays open for the Cloudflare check (blocked, EDIT-4.2) and the owner-approved deploy and purge (EDIT-4.3).
+- Tests capture raw log output for an open failure, a callback failure, and a successful save, and a scan of the raw text finds no `http://` or `https://` URL with a path or query. (Also covered: a callback error whose message carries the URL, an upload and the file fetch, an auth failure, an unhandled 500, and direct logger calls.)
 - The two logging `ERRORS.md` entries (`:213`; `:148`/`:262`/`:266`) are checked with `Resolved:` notes.
 - EDIT-2 and EDIT-3 re-run the scan over their new routes before their own checkpoints.
 

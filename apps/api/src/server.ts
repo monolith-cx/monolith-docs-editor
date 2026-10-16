@@ -59,10 +59,10 @@ const shutdown = async () => {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-app.listen({ port: config.port, host: config.host }, (err, address) => {
+app.listen({ port: config.port, host: config.host }, (err) => {
   if (err) {
     app.log.error(err);
     process.exit(1);
   }
-  app.log.info(`Monolith Docs API listening at ${address}`);
+  app.log.info({ host: config.host, port: config.port }, 'Monolith Docs API listening');
 });
