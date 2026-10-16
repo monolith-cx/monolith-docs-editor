@@ -2,6 +2,8 @@
 
 ## Initiative ID: `standalone-app`
 
+> **Re-scoped 2026-10-16 (Phase 0 only).** After the 2026-09-02 repo split, the standalone product surface lives in the private `monolith-docs` repo. This initiative keeps **Phase 0** (workspace restructure and headless parity) and its open gates. **Phases 1–7 are superseded** and are kept below as a historical record only; do not implement them here. The editor-service work UDOC needs (profiles, stateless sessions, signed notifications, conversion, redaction, the panel plugin, hosting) is the `udoc-editor-service` (EDIT) initiative. Two items have no owner and are candidate follow-ups: SA-1.6 (`hostnameGuard` and production-strict `findConsumersByHostname`) and SA-1.7 (`allowedFrameAncestors` on the editor page). The Critical Constraint below ("headless API unmodified") applies to Phase 0 only; EDIT changes the headless API deliberately, keeping the legacy open shape for existing consumers (EDIT guidance E1). Because EDIT-4 and EDIT-2 change the headless API that Phase 0 verifies, Phase 0 must close (or its Track A matrix be re-baselined: EDIT-2 removes `/api/documents/:key/download` and `/api/sessions`) before EDIT-2 is deployed. The owner decided (2026-10-16) to keep this initiative active for Phase 0 and archive it once Phase 0 closes.
+
 ## Summary
 
 Transform Monolith Docs from a headless embed service into a first-class Monolith Platform product at `docs.monolith.cx`. Authenticated users with a Docs subscription can sign in, create documents, upload from desktop, and edit in the browser — without launching from CRM or Connect. The existing headless consumer infrastructure continues to run on `monolithdocs.com` as a private inter-service domain for CRM, Connect, and fastmail-connect integrations.

@@ -1,5 +1,5 @@
 version: 1
-updated_at: "2026-04-19"
+updated_at: "2026-10-16"
 initiatives:
   - id: production-hardening
     title: "Production Security And Multi-Consumer Hardening"
@@ -13,12 +13,26 @@ initiatives:
     lane: active
     status: in_progress
     path: ".ai/initiatives/active/standalone-app"
+    notes: "RE-SCOPED 2026-10-16 to Phase 0 only (workspace restructure and headless parity). Phases 1-7 are superseded by the repo split (the product moved to the private monolith-docs repo) and by udoc-editor-service (EDIT) for the editor-service work UDOC needs. SA-1.6 (hostnameGuard) and SA-1.7 (editor-page frame-ancestors) are candidate follow-ups outside UDOC. Phase 0 must close or be re-baselined before EDIT-2 deploys. Owner (2026-10-16): keep it active for Phase 0, archive it once Phase 0 closes."
     blockers:
-      - "Phase 0 is locally code-complete, but Phase 1 stays blocked until CRM/Connect parity checks and the dev deploy/rollback evidence are captured against a committed SHA."
+      - "Phase 0 is locally code-complete; its closeout gate (real fastmail-connect headless verification against the committed west1 deploy, then the checkpoint review) is open. It must close, or its Track A matrix be re-baselined, before EDIT-2 is deployed."
       - "Platform auth, provisioning, and storage contracts must stay aligned while the standalone surface is introduced."
       - "Phase 0 monorepo restructure (npm → pnpm + Turbo, api/ → apps/api/, add apps/web + packages/db) is a hard prerequisite before any subsequent phase can land."
       - "SA-2.0 auth-sso.md logout contract extension must land in the Platform ecosystem before SA-2.2 implementation."
       - "Docs-local deploy-pipeline-parity Phase 4 must complete before standalone Phase 6 can close as deployment-complete."
+
+  - id: udoc-editor-service
+    title: "Editor Service for Unified Document Authoring"
+    abbreviation: EDIT
+    lane: active
+    status: active
+    activated_at: "2026-10-16"
+    path: ".ai/initiatives/active/udoc-editor-service"
+    parent_ecosystem_initiative: unified-document-authoring
+    parent_phase: UDOC-1
+    blockers:
+      - "EDIT-6 needs an editor host reachable from crm-dev (DOC-DPP is still planning) and a CRM notification receiver."
+    notes: "Drafted, plan-reviewed (attempt 2 PASS-WITH-NITS, nits applied), and owner-approved 2026-10-16 with parent amendments A1-A5. Next: EDIT-4 (log redaction). Implements UDOC-1.1-1.7 exactly (EDIT-n = UDOC-1.n): latest OnlyOffice Community and a repeatable battery re-run, named profiles, stateless per-open sessions in sealed editor URLs, signed and retried consumer notifications, drop, PDF conversion, log redaction, the panel bridge plugin, hosting, licence posture. Keeps fastmail-connect and the Connect extension working on the legacy open shape (E1) until they migrate."
 
   - id: deploy-pipeline-parity
     title: "Deploy Pipeline Parity For Standalone-Era Docs"

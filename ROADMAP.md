@@ -4,14 +4,22 @@ High-level feature and delivery status lives here. Detailed execution state live
 
 ## Repo Split (2026-09-02)
 
-This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. The Monolith Docs product (e-signature, customer app, Platform SSO, tRPC, Next.js) moved to the private `monolith-docs` repo under the `esignature-platform` initiative (parent ESIG in Platform). The Standalone App initiative below needs re-scoping: Phase 0 (workspace restructure and headless parity) stays here; Phases 1 through 6 are superseded by the new repo and should be archived or reduced to editor-service work.
+This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. The Monolith Docs product (e-signature, customer app, Platform SSO, tRPC, Next.js) moved to the private `monolith-docs` repo under the `esignature-platform` initiative (parent ESIG in Platform). The Standalone App initiative below was re-scoped on 2026-10-16: Phase 0 (workspace restructure and headless parity) stays here; Phases 1 through 7 are superseded by the new repo, and the editor-service work they implied is now the EDIT initiative (UDOC-1).
 
 ## Active
 
-### Standalone App
+### Editor Service for Unified Document Authoring (EDIT)
+
+- Status: `active` (approved 2026-10-16 after plan review attempt 2 PASS-WITH-NITS; next: EDIT-4, log redaction)
+- Parent: ecosystem initiative `unified-document-authoring` (UDOC) in Monolith Platform, phase UDOC-1
+- Summary: Latest OnlyOffice Community with a repeatable battery re-run, named editor profiles, stateless per-open sessions in sealed editor URLs, signed and retried consumer notifications, drop, PDF conversion, log redaction, a product-agnostic panel bridge plugin, hosting and capacity, licence posture. Existing consumers keep the legacy open shape until they migrate.
+- Plan: `.ai/initiatives/active/udoc-editor-service/plan.md`
+- Guidance: `.ai/initiatives/active/udoc-editor-service/guidance.md`
+
+### Standalone App (re-scoped 2026-10-16: Phase 0 only)
 
 - Status: `in_progress`
-- Summary: Full standalone subscriber-facing surface with Platform SSO, database, provisioning, events, tRPC, and frontend. Phase 0 monorepo restructure is locally code-complete, but CRM/Connect parity evidence plus the dev deploy/rollback gate are still open before Phase 1 can start.
+- Summary: Re-scoped to Phase 0 (workspace restructure and headless parity), which is locally code-complete with its `fastmail-connect` verification gate still open. Phases 1–7 (standalone product surface) are superseded: the product moved to the private `monolith-docs` repo, and the editor-service work UDOC needs is in Editor Service for Unified Document Authoring below. SA-1.6 (`hostnameGuard`) and SA-1.7 (editor-page `frame-ancestors`) are candidate follow-ups. The owner (2026-10-16) keeps it active for Phase 0 and archives it once Phase 0 closes.
 - Plan: `.ai/initiatives/active/standalone-app/plan.md`
 - Guidance: `.ai/initiatives/active/standalone-app/guidance.md`
 
