@@ -1,7 +1,8 @@
-# Override used only by battery item U12: turns off DocumentServer's "fetch URLs from
+# Override mount used by battery items U12 and U9 (U9 switches AI on for one control restart). U12: turns off DocumentServer's "fetch URLs from
 # JWT-signed requests directly" switch, to show what its private-address filter does
 # when that bypass is off. Configuration only; the image is unmodified.
 services:
   ds:
     volumes:
+      # Replaces the hardening file for this item only; the override repeats its AI setting.
       - ./.work/ds-local-override.json:/etc/onlyoffice/documentserver/local-production-linux.json:ro

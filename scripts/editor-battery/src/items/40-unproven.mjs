@@ -1,5 +1,7 @@
 // EDIT-1.5: behaviours UDOC depends on that the 2026-10 spike did not prove, on the pinned release.
 // Measurement items report what DocumentServer did ("record"); the consumer guide and ADR cite them.
+import { writeFile } from 'node:fs/promises';
+import nodePath from 'node:path';
 import { controls, count, paragraphs } from '../docx.mjs';
 import { Editor, buildConfig, commandService } from '../editor.mjs';
 import { VALUES } from '../fixtures.mjs';
@@ -396,29 +398,57 @@ const u8 = {
 const u9 = {
   id: 'U9',
   order: 170,
-  title: 'The built-in AI feature with the bridge plugin registered',
-  parent: 'UDOC-1.1 unproven / D13 profile',
-  async run({ context, secrets, image }) {
+  title: 'The built-in AI feature and the shipped plugins under the hardened DocumentServer configuration',
+  parent: 'UDOC-1.1 unproven / D13 profile / EDIT-2.6',
+  timeoutMs: 1_200_000,
+  async run({ context, secrets, image, work }) {
     await resetStub();
     const { editor } = await open(context, secrets, 'u9');
     const frame = editor.editorFrame();
-    const tabs = await frame.evaluate(() => Array.from(document.querySelectorAll('.ribtab > a')).map((n) => (n.textContent || '').replace(/\s+/g, ' ').trim()).filter((t) => t && t.length < 30));
+    const tabs = await frame.evaluate(() => Array.from(document.querySelectorAll('.ribtab > a')).filter((a) => a.offsetParent !== null).map((n) => (n.textContent || '').replace(/\s+/g, ' ').trim()).filter((t) => t && t.length < 30));
     await editor.close();
     const aiTab = tabs.some((t) => /^ai$/i.test(t) || /\bAI\b/.test(t));
-    const settings = await dsExec(image, secrets, `grep -A12 '"aiSettings"' /etc/onlyoffice/documentserver/default.json | head -13`).catch((e) => String(e));
-    const builtIn = await dsExec(image, secrets, 'cat /var/www/onlyoffice/documentserver/sdkjs-plugins/plugin-list-default.json; ls /var/www/onlyoffice/documentserver/sdkjs-plugins/ | grep -c marketplace').catch((e) => String(e));
+    const override = await dsExec(image, secrets, 'cat /etc/onlyoffice/documentserver/local-production-linux.json').catch((e) => String(e));
+    const pluginsEnv = await dsExec(image, secrets, 'printenv PLUGINS_ENABLED').catch((e) => String(e));
+    const pluginDirs = await dsExec(image, secrets, 'cd /var/www/onlyoffice/documentserver/sdkjs-plugins && for d in */; do echo "${d%/}"; done').catch((e) => String(e));
     const key2 = uniqueKey('u9b');
     const second = await Editor.open(context, secrets.jwtSecret, buildConfig({ fixture: FIXTURE, key: key2, customization: { plugins: false } }), { waitProbe: false });
     await sleep(8000);
     const probeWithPluginsOff = second.page.frames().some((f) => f.url().includes('/plugins/probe/'));
     await second.close();
+    // Effective configuration, not just the mounted file: DocumentServer's own AI proxy answers.
+    // Control: restart once with the same override mechanism switching AI on, then restore.
+    const aiProxy = async () => {
+      const res = await fetch(`${DS_PUBLIC}/ai-proxy`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).catch((e) => ({ status: String(e), text: async () => '' }));
+      return `${res.status} ${squash(await res.text()).slice(0, 120)}`;
+    };
+    const hardenedAnswer = await aiProxy();
+    await writeFile(nodePath.join(work, 'ds-local-override.json'), JSON.stringify({ aiSettings: { enable: true } }));
+    let controlAnswer;
+    try {
+      await restartDs(image, secrets, {}, ['compose.directif.yml']);
+      controlAnswer = await aiProxy();
+    } finally {
+      await restartDs(image, secrets);
+    }
+    const restoredAnswer = await aiProxy();
+    const disabled = (answer) => /AI is disabled/.test(answer);
+    const dirs = pluginDirs.split(/\s+/).filter(Boolean);
+    const hardened =
+      /"enable"\s*:\s*false/.test(override) &&
+      pluginsEnv.trim() === 'false' &&
+      dirs.every((d) => d === 'marketplace' || d === 'v1') &&
+      disabled(hardenedAnswer) &&
+      !disabled(controlAnswer) &&
+      disabled(restoredAnswer);
     return {
-      result: 'record',
+      result: hardened && !aiTab ? 'pass' : 'fail',
       evidence: [
         `toolbar tabs: ${[...new Set(tabs)].join(', ')}; an AI tab is shown: ${aiTab}`,
-        `server default: ${squash(settings)}`,
-        `built-in plugins shipped and listed by default (plugin-list-default.json): ${squash(builtIn)} — translator, youtube, zotero, mendeley, ocr, and speech can send content or requests to third parties; the marketplace can install more`,
-        `with customization.plugins:false the bridge plugin still loads: ${probeWithPluginsOff}${probeWithPluginsOff ? '' : ' (that switch also stops our own plugin, so it cannot be used to hide AI; the AI feature is switched off server-side instead: aiSettings.enable)'}`,
+        `server override (local-production-linux.json): ${squash(override)}; PLUGINS_ENABLED=${squash(pluginsEnv)}`,
+        `effective: POST /ai-proxy answered "${hardenedAnswer}" hardened; "${controlAnswer}" after a restart with aiSettings.enable true (control); "${restoredAnswer}" after restoring the hardened file`,
+        `plugin directories in sdkjs-plugins: ${squash(pluginDirs)} (with PLUGINS_ENABLED=false none of plugin-list-default.json's ten plugins is downloaded; marketplace is the Plugin Manager, which the document and template profiles disable by GUID, and v1 is the plugin API)`,
+        `with customization.plugins:false the bridge plugin still loads: ${probeWithPluginsOff}${probeWithPluginsOff ? '' : ' (that switch also stops our own plugin, so it cannot hide AI; the AI feature is off server-side: aiSettings.enable false)'}`,
       ],
     };
   },
@@ -482,7 +512,7 @@ const u12 = {
     const { writeFile } = await import('node:fs/promises');
     const path = await import('node:path');
     const defaults = await dsExec(image, secrets, `grep -A3 '"request-filtering-agent"' /etc/onlyoffice/documentserver/default.json; grep -A4 '"directIfIn"' /etc/onlyoffice/documentserver/default.json; grep '"maxDownloadBytes"' /etc/onlyoffice/documentserver/default.json; grep -A1 '"files": 86400' /etc/onlyoffice/documentserver/default.json`).catch((e) => String(e));
-    await writeFile(path.join(work, 'ds-local-override.json'), JSON.stringify({ externalRequest: { directIfIn: { jwtToken: false } } }));
+    await writeFile(path.join(work, 'ds-local-override.json'), JSON.stringify({ aiSettings: { enable: false }, externalRequest: { directIfIn: { jwtToken: false } } }));
     let bypass;
     let control;
     let effective = '';

@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "release": "10.0.0.1",
+    "date": "2026-10-18",
+    "image": "onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3",
+    "started": "2026-10-18T09:40:39.443Z",
+    "finished": "2026-10-18T09:45:56.238Z",
+    "host": "altus-labs-dev",
+    "only": "S0,S1,S2,E2a,E2b,E2c,E2d,E2e",
+    "dsSettleSeconds": 172,
+    "totals": {
+      "pass": 8
+    }
+  },
+  "results": [
+    {
+      "id": "S0",
+      "title": "Stack smoke: open, probe plugin reads, force-save round trip",
+      "parent": "EDIT-1.2",
+      "result": "pass",
+      "evidence": [
+        "paragraphs read via probe: 14; controls in editor: 7",
+        "forcesave answer: {\"http\":200,\"key\":\"smoke-1792316627530\",\"error\":0}; callback token header/payload-wrapped; url origin http://127.0.0.1:18200",
+        "saved file controls: field:r2(sdtContentLocked), field:r1(sdtContentLocked), field:r2(sdtContentLocked), field:r3(sdtContentLocked), field:r4(sdtContentLocked), field:r5(sdtContentLocked), block:r6(sdtContentLocked)"
+      ],
+      "seconds": 6
+    },
+    {
+      "id": "S1",
+      "title": "The service: a document session opens under its CSP, edits, and the consumer receives signed notifications",
+      "parent": "EDIT-1.3 / EDIT-2.8",
+      "result": "pass",
+      "evidence": [
+        "open 200, key battery.bat_mvdn1p65_1.e1; editor drew the document under the page's CSP (violations: none)",
+        "the consumer's file was fetched 1 time(s), every time by the service (source route, pinned), never by DocumentServer: true (fetchers: api)",
+        "consumer notifications: editing[1], saved[0]; every signature valid true",
+        "final save: deliveryId present and equal to its header true; download URL origin http://127.0.0.1:18200; the saved file holds the edit true"
+      ],
+      "seconds": 15
+    },
+    {
+      "id": "S2",
+      "title": "The service: the legacy flows of fastmail-connect (upload, then view-only) and the Connect extension (upload, then editable, no callback)",
+      "parent": "EDIT-1.3 / E1",
+      "result": "pass",
+      "evidence": [
+        "fastmail-connect (edit:false, download, print, no callback): uploaded through /api/files/upload (internal fileUrl true); open 200 (key legacy.legacy-144d99af-13e0-4a17-9fdf-4df8b5313e2e.v0); DocumentServer drew the uploaded file; typed then force-save answered error 4 (want 4: view-only held)",
+        "Connect extension (default permissions, no callback): uploaded through /api/files/upload (internal fileUrl true); open 200 (key legacy.legacy-e7f2158f-d965-4518-82a1-14f228a592fd.e0); DocumentServer drew the uploaded file; typed then force-save answered error 0 (want 0: edits reached the server)"
+      ],
+      "seconds": 17
+    },
+    {
+      "id": "E2a",
+      "title": "The document profile in a real editor: no lock option, no Protection tab, no AI tab, no Plugins tab; what \"Remove content control\" does",
+      "parent": "EDIT-2.8",
+      "result": "pass",
+      "evidence": [
+        "visible toolbar tabs: File, Home, Insert, Draw, Layout, References, Collaboration, View (Protection false, AI false, Plugins false)",
+        "context menu inside a field opened true: Cut | Copy | Paste | Print selection | Remove content control | Page break before | Keep lines together | Paragraph advanced settings | Formatting as Style; a lock or content-control settings option false",
+        "\"Remove content control\" under modifyContentControl:false: controls before 7, after 6; removed: field:r1 (\"2026-11-01\"); paragraph now \"This Agreement starts on 2026-11-01 between Monolith and Acme Testing LLC. The total is $12,345.00 payable Net 30.\""
+      ],
+      "seconds": 14
+    },
+    {
+      "id": "E2b",
+      "title": "A service restart between an edit and the save still delivers the save (stateless sessions)",
+      "parent": "EDIT-2.8",
+      "result": "pass",
+      "evidence": [
+        "after restarting the service, the final save reached the consumer true, signed true, holding the edit true"
+      ],
+      "seconds": 16
+    },
+    {
+      "id": "E2c",
+      "title": "A consumer that is down (503) or refusing (401) at the final save, then recovered within the retry horizon, receives the save",
+      "parent": "EDIT-2.8 / E6",
+      "result": "pass",
+      "evidence": [
+        "consumer answering 503 twice: 3 delivery attempt(s) (503, 503, 200); the third delivered the save true holding the edit true; one deliveryId across attempts true",
+        "consumer answering 401 twice: 3 delivery attempt(s) (401, 401, 200); the third delivered the save true holding the edit true; one deliveryId across attempts true"
+      ],
+      "seconds": 35
+    },
+    {
+      "id": "E2d",
+      "title": "Drop through the service: with edits the consumer gets the final save, without edits a closed notification",
+      "parent": "EDIT-2.5 / EDIT-2.8",
+      "result": "pass",
+      "evidence": [
+        "with edits: drop answered 200 {\"result\":\"ok\"}; terminal notification saved; holds the edit true",
+        "no edits: drop answered 200 {\"result\":\"ok\"}; terminal notification closed",
+        "another consumer dropping this consumer's key: 403"
+      ],
+      "seconds": 15
+    },
+    {
+      "id": "E2e",
+      "title": "Tampered and unknown editor tokens show the expired page; refusals at open",
+      "parent": "EDIT-2.8",
+      "result": "pass",
+      "evidence": [
+        "tampered token: 410, expired page without a link true, CSP true",
+        "refused at open: dot in key → 400 bad_key:bad_component; view on e key → 400 profile_mode_mismatch; panel on unregistered origin → 400 panel_origin_not_registered; file host not registered → 400 file_url_refused:host_not_allowed; legacy callbackUrl → 400 legacy_field_removed"
+      ],
+      "seconds": 0
+    }
+  ]
+}

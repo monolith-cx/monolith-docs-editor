@@ -4,7 +4,7 @@
 // --keep leaves the stack up and its scratch secret in .work/ (gitignored); --reuse attaches to it.
 // Brings up the scratch stack, runs every item against the pinned DocumentServer,
 // writes docs/spikes/results/<release>/<date>.{md,json}, and tears the stack down.
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
@@ -138,7 +138,12 @@ async function main() {
   };
   const outDir = path.resolve(BATTERY_DIR, '..', '..', 'docs', 'spikes', 'results', release);
   await mkdir(outDir, { recursive: true });
-  const stamp = `${date}${args.only ? `-partial-${started.toISOString().slice(11, 16).replace(':', '')}` : ''}`;
+  // A run never overwrites an earlier record: a second run on the same date gets its start time.
+  const hhmm = started.toISOString().slice(11, 16).replace(':', '');
+  let stamp = `${date}${args.only ? `-partial-${hhmm}` : ''}`;
+  const taken = (name) => access(path.join(outDir, `${name}.json`)).then(() => true, () => false);
+  if (await taken(stamp)) stamp = `${date}-${args.only ? 'partial-' : ''}${hhmm}`;
+  for (let n = 2; await taken(stamp); n += 1) stamp = `${date}-${args.only ? 'partial-' : ''}${hhmm}-${n}`;
   await writeFile(path.join(outDir, `${stamp}.json`), `${JSON.stringify({ meta, results }, null, 2)}\n`);
   await writeFile(path.join(outDir, `${stamp}.md`), markdown(meta, results));
   process.stdout.write(`results: docs/spikes/results/${release}/${stamp}.{md,json}\n`);

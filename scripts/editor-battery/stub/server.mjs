@@ -7,12 +7,14 @@
 //
 // Everything it records is synthetic; the JWT secret is a random per-run value.
 import { createServer } from 'node:http';
-import { createHash, randomUUID } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { verifyJwt } from './jwt.mjs';
 
 const SECRET = process.env.BATTERY_JWT_SECRET;
+const NOTIFY_SECRET = process.env.BATTERY_NOTIFY_SECRET ?? '';
 const DS_INTERNAL = process.env.DS_INTERNAL ?? 'http://ds';
 const DS_PUBLIC = process.env.DS_PUBLIC ?? 'http://127.0.0.1:18200';
 const WORK = '/work';
@@ -21,6 +23,7 @@ const STUB_DIR = path.dirname(new URL(import.meta.url).pathname);
 const sessions = new Map();
 let events = [];
 let callbackMode = { mode: 'ok', count: 0 };
+let consumerMode = { failLeft: 0, failStatus: 503 };
 let saveCounter = 0;
 
 const TYPES = {
@@ -158,11 +161,21 @@ async function handleCallback(req, res) {
   }
 }
 
+/** Which compose service made a request (`api`, `ds`, or the address), by resolving the service names. */
+async function fetcherOf(req) {
+  const remote = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
+  for (const name of ['api', 'ds']) {
+    const addresses = await lookup(name, { all: true }).then((list) => list.map((a) => a.address), () => []);
+    if (addresses.includes(remote)) return name;
+  }
+  return remote;
+}
+
 async function originA(req, res) {
   const url = new URL(req.url, 'http://stub');
   const p = url.pathname;
   if (req.method === 'GET' && p.startsWith('/fixtures/')) {
-    events.push({ t: Date.now(), kind: 'fixture-fetch', path: p, ua: req.headers['user-agent'] ?? '' });
+    events.push({ t: Date.now(), kind: 'fixture-fetch', path: p, ua: req.headers['user-agent'] ?? '', from: await fetcherOf(req) });
     return serveFile(res, path.join(WORK, 'fixtures'), p.slice('/fixtures/'.length));
   }
   if (req.method === 'GET' && p.startsWith('/plugins/')) {
@@ -185,7 +198,7 @@ async function originA(req, res) {
   }
   if (req.method === 'POST' && p === '/callback') return handleCallback(req, res);
   if (req.method === 'POST' && p === '/consumer-callback') {
-    // What apps/api forwards to a consumer after a save (today: unsigned, EDIT-2 signs it).
+    // The consumer side of the service's signed notifications (EDIT-2.4): verify, record, answer as told.
     const raw = await readBody(req);
     let body = {};
     try {
@@ -193,25 +206,43 @@ async function originA(req, res) {
     } catch {
       body = {};
     }
-    events.push({
+    const ts = req.headers['x-editor-timestamp'];
+    const sigs = String(req.headers['x-editor-signature'] ?? '').split(',').map((x) => x.trim().replace(/^v1=/, ''));
+    const expected = createHmac('sha256', NOTIFY_SECRET).update(`${ts}.${raw.toString('utf8')}`).digest('hex');
+    const signatureValid = sigs.some((sig) => sig.length === expected.length && timingSafeEqual(Buffer.from(sig), Buffer.from(expected)));
+    const answer = consumerMode.failLeft > 0 ? consumerMode.failStatus : 200;
+    if (consumerMode.failLeft > 0) consumerMode.failLeft -= 1;
+    const event = {
       t: Date.now(),
       kind: 'consumer-callback',
       key: body.key,
       status: body.status,
+      event: body.event,
+      users: body.users,
+      actions: body.actions,
+      deliveryId: body.deliveryId,
+      deliveryHeader: req.headers['x-editor-delivery'] ?? null,
       hasDownloadUrl: Boolean(body.downloadUrl),
-      signatureHeader: Boolean(req.headers['x-editor-signature']),
-      headerNames: Object.keys(req.headers).sort(),
-    });
-    if (body.downloadUrl) {
-      const saved = await downloadSaved(body.downloadUrl, `consumer-${body.key}`, body.status === 'saved' ? 2 : 6).catch((err) => ({ error: String(err) }));
-      events[events.length - 1].saved = saved;
+      downloadOrigin: body.downloadUrl ? new URL(body.downloadUrl).origin : null,
+      signatureValid,
+      answered: answer,
+    };
+    if (answer === 200 && body.downloadUrl) {
+      event.saved = await downloadSaved(body.downloadUrl, `consumer-${body.key}`, body.status ?? 0).catch((err) => ({ error: String(err) }));
     }
+    events.push(event);
+    return send(res, answer, answer === 200 ? { ok: true } : { error: 'consumer unavailable' });
+  }
+  if (req.method === 'POST' && p === '/control/consumer-mode') {
+    const { failCount, failStatus } = JSON.parse((await readBody(req)).toString('utf8'));
+    consumerMode = { failLeft: failCount ?? 0, failStatus: failStatus ?? 503 };
     return send(res, 200, { ok: true });
   }
   if (req.method === 'GET' && p === '/events') return send(res, 200, events);
   if (req.method === 'POST' && p === '/control/reset') {
     events = [];
     callbackMode = { mode: 'ok', count: 0 };
+    consumerMode = { failLeft: 0, failStatus: 503 };
     return send(res, 200, { ok: true });
   }
   if (req.method === 'POST' && p === '/control/callback-mode') {

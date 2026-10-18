@@ -10,10 +10,13 @@ import { authPlugin } from './auth.js';
 import { healthRoutes } from './routes/health.js';
 import { documentRoutes } from './routes/documents.js';
 import { fileRoutes } from './routes/files.js';
-import { LOG_REDACT_CENSOR, LOG_REDACT_PATHS, scrubLogArguments, serializeError, serializeRequest } from './log-safety.js';
+import { MAX_TOKEN_CHARS } from './session-token.js';
+import { LOG_REDACT_CENSOR, LOG_REDACT_PATHS, redactRequestPath, scrubLogArguments, serializeError, serializeRequest } from './log-safety.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const isProduction = config.nodeEnv === 'production';
+const isLocal = !config.strict;
+// Sealed editor tokens travel in the path (EDIT-2.3).
+const MAX_PARAM_LENGTH = MAX_TOKEN_CHARS + 16;
 
 export interface BuildAppOptions {
   /** Log destination; tests inject a stream to assert on real log lines. */
@@ -22,6 +25,8 @@ export interface BuildAppOptions {
 
 export function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({
+    // A sealed editor token travels as one path parameter (EDIT-2.3); top-level maxParamLength is deprecated (FSTDEP022).
+    routerOptions: { maxParamLength: MAX_PARAM_LENGTH },
     logger: {
       level: config.logLevel,
       ...(options.logStream ? { stream: options.logStream } : {}),
@@ -55,10 +60,11 @@ export function buildApp(options: BuildAppOptions = {}) {
   // Security headers
   app.addHook('onSend', async (req, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');
-    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // A route's own policy wins: the editor page carries its token in the URL and sends no-referrer.
+    if (!reply.hasHeader('Referrer-Policy')) reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
     reply.header('X-XSS-Protection', '0');
 
-    if (isProduction) {
+    if (!isLocal) {
       reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
 
@@ -74,7 +80,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   });
 
   // Serve test fixture files at /files/ — dev/test only
-  if (!isProduction) {
+  if (isLocal) {
     app.register(fastifyStatic, {
       root: path.join(__dirname, 'fixtures'),
       prefix: '/files/',
@@ -85,6 +91,13 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(healthRoutes);
   app.register(documentRoutes);
   app.register(fileRoutes);
+
+  // Fastify's own 404 message names the full URL ("Route GET:/editor/<token>/ not found"), which
+  // would put a sealed token or a document key in the log (EDIT-4). Log the redacted path only.
+  app.setNotFoundHandler((req, reply) => {
+    req.log.info({ path: redactRequestPath(req.url) }, 'Route not found');
+    return reply.status(404).send({ error: 'not_found' });
+  });
 
   return app;
 }

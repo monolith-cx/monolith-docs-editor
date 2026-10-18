@@ -10,6 +10,10 @@ services:
       JWT_SECRET: ${BATTERY_JWT_SECRET:?set by the runner}
       JWT_HEADER: Authorization
       ALLOW_PRIVATE_IP_ADDRESS: ${BATTERY_ALLOW_PRIVATE_IP:-true}
+      # The service's production hardening (ADR F4, F5): no marketplace plugins, AI off.
+      PLUGINS_ENABLED: "false"
+    volumes:
+      - ../../infrastructure/onlyoffice/local-production-linux.json:/etc/onlyoffice/documentserver/local-production-linux.json:ro
     ports:
       - "127.0.0.1:18200:80"
     healthcheck:
@@ -25,6 +29,7 @@ services:
     command: ["node", "server.mjs"]
     environment:
       BATTERY_JWT_SECRET: ${BATTERY_JWT_SECRET:?set by the runner}
+      BATTERY_NOTIFY_SECRET: ${BATTERY_NOTIFY_SECRET:?set by the runner}
       DS_INTERNAL: http://ds
       DS_PUBLIC: http://127.0.0.1:18200
     volumes:
@@ -50,6 +55,16 @@ services:
       ONLYOFFICE_JWT_SECRET: ${BATTERY_JWT_SECRET:?set by the runner}
       API_PUBLIC_URL: http://127.0.0.1:18204
       API_INTERNAL_URL: http://api:3020
+      # EDITOR_ENV=local admits http and private addresses (the scratch network) and api-key consumers.
+      EDITOR_ENV: local
+      EDITOR_SEAL_KEYS: ${BATTERY_SEAL_KEY:?set by the runner}
+      EDITOR_NOTIFY_SECRET_BATTERY: ${BATTERY_NOTIFY_SECRET:?set by the runner}
+      CONSUMERS: >-
+        [{"id":"battery","name":"Battery consumer","auth":{"mode":"api-key","key":"${BATTERY_API_KEY:?set by the runner}"},
+          "profiles":["document","template","view"],"callbackUrl":"http://stub:18201/consumer-callback",
+          "notificationSecretRef":"EDITOR_NOTIFY_SECRET_BATTERY","panelOrigins":["http://127.0.0.1:18202"],
+          "fileHosts":["stub"],"convertSourceHosts":["stub"],"convertUploadHosts":["stub"],"returnOrigin":"http://127.0.0.1:18201"},
+         {"id":"legacy","name":"Legacy-shape consumer","auth":{"mode":"api-key","key":"${BATTERY_LEGACY_KEY:?set by the runner}"}}]
     ports:
       - "127.0.0.1:18204:3020"
     depends_on:

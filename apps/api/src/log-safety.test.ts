@@ -1,6 +1,10 @@
+import jwt from 'jsonwebtoken';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { PassThrough } from 'node:stream';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app.js';
+import { config } from './config.js';
 import { resetConsumers, setConsumersForTest } from './consumers.js';
 import {
   hostOf,
@@ -30,41 +34,62 @@ function expectNoAccessGrantingUrls(raw: string, secrets: string[]) {
   }
 }
 
-const SIGNED_FILE_URL = 'https://storage.googleapis.com/bucket/contract.docx?X-Goog-Signature=SECRET_FILE_SIG';
-const CALLBACK_URL = 'https://api.example.com/hooks/docs?token=SECRET_CALLBACK_TOKEN';
+const SIGNED_FILE_URL = 'http://127.0.0.1:9/contract.docx?X-Goog-Signature=SECRET_FILE_SIG';
+
+let receiverPort = 0;
+let receiverStatus = 200;
+const receiver = createServer((req, res) => {
+  req.resume();
+  req.on('end', () => {
+    res.writeHead(receiverStatus);
+    res.end('{}');
+  });
+});
+beforeAll(async () => {
+  await new Promise<void>((r) => receiver.listen(0, '127.0.0.1', () => r()));
+  receiverPort = (receiver.address() as AddressInfo).port;
+});
+afterAll(() => new Promise<void>((r) => receiver.close(() => r())));
+
+function useConsumer(callbackUrl: string) {
+  resetConsumers();
+  setConsumersForTest([{
+    id: 'crm',
+    name: 'CRM',
+    auth: { mode: 'api-key', key: 'crm-key' },
+    profiles: ['document'],
+    callbackUrl,
+    notificationSecretRef: 'EDITOR_NOTIFY_SECRET_TEST',
+    panelOrigins: ['https://panel.test'],
+    fileHosts: ['127.0.0.1'],
+    convertSourceHosts: ['127.0.0.1'],
+    convertUploadHosts: ['127.0.0.1'],
+    returnOrigin: 'https://crm.test',
+  }]);
+}
 
 async function openSession(app: ReturnType<typeof buildApp>) {
   const res = await app.inject({
     method: 'POST',
     url: '/api/documents/open',
-    payload: {
-      fileUrl: SIGNED_FILE_URL,
-      callbackUrl: CALLBACK_URL,
-      fileName: 'contract.docx',
-      user: { id: 'user-1', name: 'Test User' },
-    },
+    headers: { authorization: 'Bearer crm-key' },
+    payload: { profile: 'document', documentRef: 'doc_1', revision: '1', mode: 'e', fileUrl: SIGNED_FILE_URL, fileName: 'contract.docx', user: { id: 'user-1', name: 'Test User' }, panelUrl: 'https://panel.test/p#token=SECRET_PANEL_TOKEN' },
   });
   expect(res.statusCode).toBe(200);
-  return res.json<{ key: string }>().key;
+  const body = res.json<{ key: string; editorUrl: string }>();
+  return { key: body.key, token: body.editorUrl.slice(body.editorUrl.indexOf('/editor/') + 8) };
 }
 
 function saveCallback(key: string) {
-  return {
-    method: 'POST' as const,
-    url: '/api/documents/callback',
-    payload: {
-      key,
-      status: 2,
-      url: `http://onlyoffice/cache/files/${key}/output.docx/output.docx?md5=SECRET_DS_MD5&expires=1`,
-      users: ['user-1'],
-    },
-  };
+  const payload = { key, status: 2, url: 'http://ds-public.test/cache/files/data/x/output.docx?md5=SECRET_DS_MD5&expires=1', users: ['user-1'], lastsave: '2026-10-18T00:00:00.000Z' };
+  return { method: 'POST' as const, url: '/api/documents/callback', headers: { authorization: `Bearer ${jwt.sign({ payload }, config.onlyofficeJwtSecret)}` }, payload };
 }
 
 describe('log output carries no access-granting URL (EDIT-4)', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     resetConsumers();
+    receiverStatus = 200;
   });
 
   it('an open failure logs neither the file reference nor its secret', async () => {
@@ -74,66 +99,107 @@ describe('log output carries no access-granting URL (EDIT-4)', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/documents/open',
-      payload: { fileUrl: 'gs://SECRET_BUCKET_NAME', user: { id: 'user-1', name: 'Test User' } },
+      payload: { fileUrl: 'gs://SECRET_BUCKET_NAME/x.docx', user: { id: 'user-1', name: 'Test User' } },
     });
 
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).not.toContain('SECRET_BUCKET_NAME');
-    expect(logs.text()).toContain('Failed to resolve file URL');
     expectNoAccessGrantingUrls(logs.text(), ['SECRET_BUCKET_NAME']);
     await app.close();
   });
 
-  it('a successful save logs no signed URL, callback URL, download URL, or editor key', async () => {
-    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
+  it('a session, its editor page, and a save log no signed URL, callback URL, download URL, panel token, or editor token', async () => {
+    useConsumer(`http://127.0.0.1:${receiverPort}/hooks/docs?token=SECRET_CALLBACK_TOKEN`);
     const logs = captureLogs();
     const app = buildApp({ logStream: logs.stream });
 
-    const key = await openSession(app);
-    const page = await app.inject({ method: 'GET', url: `/editor/${key}?ref=SECRET_QUERY` });
+    const { key, token } = await openSession(app);
+    const page = await app.inject({ method: 'GET', url: `/editor/${token}?ref=SECRET_QUERY` });
     expect(page.statusCode).toBe(200);
     const saved = await app.inject(saveCallback(key));
     expect(saved.json()).toEqual({ error: 0 });
-    expect(fetchMock).toHaveBeenCalledOnce();
 
     const raw = logs.text();
-    expect(raw).toContain('OnlyOffice callback received');
+    expect(raw).toContain('Consumer notified');
     expect(raw).toContain(`"keyRef":"${keyRef(key)}"`);
     expect(raw).toContain('"path":"/editor/[redacted]"');
-    expectNoAccessGrantingUrls(raw, [key, 'SECRET_FILE_SIG', 'SECRET_CALLBACK_TOKEN', 'SECRET_DS_MD5', 'SECRET_QUERY']);
+    expectNoAccessGrantingUrls(raw, [token, 'SECRET_FILE_SIG', 'SECRET_CALLBACK_TOKEN', 'SECRET_DS_MD5', 'SECRET_QUERY', 'SECRET_PANEL_TOKEN']);
     await app.close();
   });
 
-  it('a consumer callback failure logs only the callback host', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })));
+  it("unmatched routes log a redacted path, never Fastify's full-URL 404 message (attempt-2 H1)", async () => {
+    useConsumer(`http://127.0.0.1:${receiverPort}/hooks/docs`);
     const logs = captureLogs();
     const app = buildApp({ logStream: logs.stream });
-
-    const key = await openSession(app);
-    await app.inject(saveCallback(key));
-
+    const { key, token } = await openSession(app);
+    for (const url of [`/editor/${token}/`, `/api/documents/source/${token}/extra`, `/api/documents/${key}/download`]) {
+      const res = await app.inject({ method: 'GET', url, headers: { authorization: 'Bearer crm-key' } });
+      expect(res.statusCode).toBe(404);
+      expect(res.json()).toEqual({ error: 'not_found' });
+    }
     const raw = logs.text();
-    expect(raw).toContain('Consumer callback failed');
-    expect(raw).toContain('"callbackHost":"api.example.com"');
-    expectNoAccessGrantingUrls(raw, [key, 'SECRET_CALLBACK_TOKEN', 'SECRET_DS_MD5']);
+    expect(raw).toContain('Route not found');
+    expect(raw).not.toMatch(/Route GET:/);
+    expectNoAccessGrantingUrls(raw, [token, key]);
     await app.close();
   });
 
-  it('a consumer callback error whose message carries the URL is scrubbed', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new Error(`connect ECONNREFUSED while calling ${CALLBACK_URL}`);
-    }));
+  it('the source route logs the host and key fingerprint only, served or failed', async () => {
+    useConsumer(`http://127.0.0.1:${receiverPort}/hooks/docs`);
+    const logs = captureLogs();
+    const app = buildApp({ logStream: logs.stream });
+    const sourceOf = async (fileUrl: string) => {
+      const opened = await app.inject({
+        method: 'POST',
+        url: '/api/documents/open',
+        headers: { authorization: 'Bearer crm-key' },
+        payload: { profile: 'document', documentRef: 'doc_2', revision: '1', mode: 'e', fileUrl, fileName: 'c.docx', user: { id: 'u', name: 'U' }, panelUrl: 'https://panel.test/p#token=SECRET_PANEL_TOKEN' },
+      });
+      const editorPath = new URL(opened.json<{ editorUrl: string }>().editorUrl).pathname;
+      const page = await app.inject({ method: 'GET', url: editorPath });
+      const cfg = JSON.parse(/var editorConfig = (\{.*\});/.exec(page.body)?.[1] ?? '{}') as { document: { url: string } };
+      return new URL(cfg.document.url).pathname;
+    };
+    const served = await app.inject({ method: 'GET', url: await sourceOf(`http://127.0.0.1:${receiverPort}/contract.docx?X-Goog-Signature=SECRET_FILE_SIG`) });
+    expect(served.statusCode).toBe(200);
+    const failed = await app.inject({ method: 'GET', url: await sourceOf(SIGNED_FILE_URL) });
+    expect(failed.statusCode).toBe(502);
+    const raw = logs.text();
+    expect(raw).toContain('Document source served');
+    expect(raw).toContain('Document source unreachable');
+    expect(raw).toContain('"path":"/api/documents/[redacted]"');
+    expectNoAccessGrantingUrls(raw, ['SECRET_FILE_SIG', 'SECRET_PANEL_TOKEN']);
+    await app.close();
+  });
+
+  it('a consumer failure logs only the callback host and the outcome', async () => {
+    useConsumer(`http://127.0.0.1:${receiverPort}/hooks/docs?token=SECRET_CALLBACK_TOKEN`);
+    receiverStatus = 500;
     const logs = captureLogs();
     const app = buildApp({ logStream: logs.stream });
 
-    const key = await openSession(app);
+    const { key } = await openSession(app);
+    const res = await app.inject(saveCallback(key));
+    expect(res.statusCode).toBe(503);
+
+    const raw = logs.text();
+    expect(raw).toContain(`"callbackHost":"127.0.0.1:${receiverPort}"`);
+    expect(raw).toContain('"outcome":"retry"');
+    expectNoAccessGrantingUrls(raw, ['SECRET_CALLBACK_TOKEN', 'SECRET_DS_MD5']);
+    await app.close();
+  });
+
+  it('an unreachable consumer is logged without its URL', async () => {
+    useConsumer('http://127.0.0.1:1/hooks/docs?token=SECRET_CALLBACK_TOKEN');
+    const logs = captureLogs();
+    const app = buildApp({ logStream: logs.stream });
+
+    const { key } = await openSession(app);
     await app.inject(saveCallback(key));
 
     const raw = logs.text();
-    expect(raw).toContain('Consumer callback error');
-    expect(raw).toContain('connect ECONNREFUSED while calling [url]');
-    expectNoAccessGrantingUrls(raw, [key, 'SECRET_CALLBACK_TOKEN']);
+    expect(raw).toContain('"outcome":"retry"');
+    expectNoAccessGrantingUrls(raw, ['SECRET_CALLBACK_TOKEN']);
     await app.close();
   });
 

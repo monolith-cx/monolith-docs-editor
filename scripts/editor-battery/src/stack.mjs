@@ -17,7 +17,13 @@ export const STUB_C = 'http://127.0.0.1:18203';
 export const STUB_INTERNAL = 'http://stub:18201';
 
 export function newSecrets() {
-  return { jwtSecret: randomBytes(32).toString('base64url') };
+  return {
+    jwtSecret: randomBytes(32).toString('base64url'),
+    sealKey: randomBytes(32).toString('base64url'),
+    notifySecret: randomBytes(32).toString('base64url'),
+    apiKey: randomBytes(16).toString('base64url'),
+    legacyKey: randomBytes(16).toString('base64url'),
+  };
 }
 
 function composeEnv(image, secrets, extra = {}) {
@@ -25,6 +31,10 @@ function composeEnv(image, secrets, extra = {}) {
     ...process.env,
     BATTERY_DS_IMAGE: image,
     BATTERY_JWT_SECRET: secrets.jwtSecret,
+    BATTERY_SEAL_KEY: secrets.sealKey,
+    BATTERY_NOTIFY_SECRET: secrets.notifySecret,
+    BATTERY_API_KEY: secrets.apiKey,
+    BATTERY_LEGACY_KEY: secrets.legacyKey,
     ...extra,
   };
 }
@@ -66,7 +76,8 @@ async function waitDsSettled(image, secrets, timeoutMs = 600_000) {
 
 /** Starts the stack; resolves to the milliseconds DocumentServer took to settle after reporting healthy. */
 export async function up(image, secrets, extra = {}) {
-  await compose(['up', '-d', '--wait', '--wait-timeout', '420'], composeEnv(image, secrets, extra));
+  // --build: the api image is this checkout's service; a cached image would test stale code.
+  await compose(['up', '-d', '--build', '--wait', '--wait-timeout', '420'], composeEnv(image, secrets, extra), 900_000);
   return waitDsSettled(image, secrets);
 }
 
@@ -105,6 +116,24 @@ export async function setCallbackMode(mode) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ mode }),
   });
+}
+
+export async function setConsumerMode(failCount, failStatus = 503) {
+  await stub('/control/consumer-mode', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ failCount, failStatus }),
+  });
+}
+
+export async function restartApi(image, secrets) {
+  await compose(['restart', 'api'], composeEnv(image, secrets), 180_000);
+  for (let i = 0; i < 60; i += 1) {
+    const ok = await fetch('http://127.0.0.1:18204/health').then((r) => r.ok).catch(() => false);
+    if (ok) return;
+    await sleep(1000);
+  }
+  throw new Error('api did not come back after restart');
 }
 
 export async function events() {

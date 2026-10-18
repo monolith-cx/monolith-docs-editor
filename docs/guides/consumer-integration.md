@@ -1,0 +1,291 @@
+# Consumer integration guide
+
+How an app (a *consumer*) opens documents in the Monolith editor service, receives saves, and
+closes sessions. This is the service side of the ecosystem contract `document-editing.md`
+(UDOC-2.1, drafted in Platform under `docs/ecosystem/contracts-draft/`). Written at EDIT-2
+(2026-10-18) against OnlyOffice DocumentServer 10.0.0.1; the measured behaviour it relies on is in
+`docs/adr/2026-10-17-onlyoffice-release-and-licence.md` (findings F1–F16).
+
+The service is stateless: it keeps no session map and no database. Everything an editor page
+needs travels in a sealed editor URL, and every DocumentServer callback is routed by the document
+key to the consumer that opened it.
+
+## 1. Registration
+
+A consumer is an entry in the service's `CONSUMERS` (JSON). A consumer that uses the profile
+surface carries every field below; the service refuses to start otherwise.
+
+| Field | Meaning |
+|---|---|
+| `id` | `[0-9A-Za-z_-]+`. The first component of every key the consumer opens. |
+| `auth` | `hmac` or `jwks`: how `open`, `drop`, and `forgotten` calls authenticate. These are server-to-server calls from the consumer's backend; the service's CORS admits only `GET` and `POST` and no browser should hold a consumer credential. `api-key` is accepted only under `EDITOR_ENV=local` (the scratch battery); the service refuses to start with one anywhere else. |
+| `profiles` | Any of `document`, `template`, `view`. Absent: legacy request shape only (section 8). |
+| `callbackUrl` | The one notification endpoint. https outside `EDITOR_ENV=local`; resolved and pinned to public addresses at every delivery; redirects are not followed. |
+| `notificationSecretRef` | The environment variable holding the notification secret, named outright (e.g. `EDITOR_NOTIFY_SECRET_CRM`). `<name>_PREVIOUS` holds the previous secret during a rotation. |
+| `panelOrigins` | Exact origins the consumer's panel pages are served from. |
+| `fileHosts` | Hosts an `open` `fileUrl` may name. |
+| `convertSourceHosts`, `convertUploadHosts` | Hosts a conversion may read from and upload to (EDIT-3). |
+| `returnOrigin` | Where the expired page links back to. |
+
+Secrets are created per environment in 1Password and Secret Manager and recorded by name in
+`CREDENTIALS.md`. The consumer holds the same notification secret. Outside `local` the service
+refuses to start when a profile consumer's secret is unset, when the current or previous value is
+shorter than 32 bytes, or when two consumers name the same secret. At start it also resolves each
+`callbackUrl` and logs a warning (never the URL) when a delivery would be refused.
+
+## 2. Opening a document
+
+`POST /api/documents/open`, authenticated as the consumer.
+
+```json
+{
+  "profile": "document",
+  "documentRef": "ctr_8f3k2",
+  "revision": "14",
+  "mode": "e",
+  "fileUrl": "https://files.example.com/signed/…",
+  "fileName": "Master services agreement.docx",
+  "user": { "id": "u_123", "name": "Rep One" },
+  "panelUrl": "https://crm.example.com/udoc/panel#t=<panel token>"
+}
+```
+
+Answer: `{ "editorUrl": "https://editor…/editor/<sealed token>", "key": "crm.ctr_8f3k2.e14", "expiresAt": "…" }`.
+Open `editorUrl` in an iframe or a tab. Nothing else is needed on the page.
+
+### Profiles
+
+| Profile | Mode | What the editor allows |
+|---|---|---|
+| `document` | `e` | Editing; a field's value (a `contentLocked` content control) cannot be typed over and its settings cannot be changed (`modifyContentControl: false`), but **a field can still be removed**: with its surrounding sentence (the loose lock, UDOC D11, ADR F9), or through the context menu's "Remove content control", which leaves its value behind as plain text (ADR F16). No Protection tab (`protect: false`); force-save on; the bridge plugin with the panel URL; the Plugin Manager disabled and the Plugins tab hidden. |
+| `template` | `e` | As `document`. The panel decides what template authoring adds (EDIT-5). |
+| `view` | `v` | Read-only; no plugins; no panel URL (sending one is refused). |
+
+On every DocumentServer the service deploys, the built-in AI feature is off server-side
+(`aiSettings.enable: false`) and the marketplace plugins are not installed
+(`PLUGINS_ENABLED=false`); this is DocumentServer configuration, not image modification (ADR F4, F5).
+
+The editor's locks are enforced only in the browser. **Validate every file you get back** (UDOC
+D16): each field control names a row you know, keeps its lock, and holds one value run; and on
+every save, report each field row whose control is gone, not only the required ones at finalize.
+
+### Keys and revisions
+
+The document key is `<consumer>.<documentRef>.<mode><revision>`, at most 128 characters, each
+component `[0-9A-Za-z_-]+` (a `.` anywhere is refused). DocumentServer treats one key as one
+co-editing session over one file version, so:
+
+- Bump `revision` whenever the stored file changes outside the editor (a save you stored, an
+  upload, a restore). Reusing a key over a different file shows users stale content.
+- Everyone editing the same version together must get the same key: use the same
+  `documentRef`, `revision`, and mode.
+- `view` keys (`v`) never collide with editing keys (`e`).
+
+### File URLs
+
+`fileUrl` must be https, name a host in `fileHosts`, and resolve only to public addresses
+(private, loopback, link-local, CGNAT, unique-local and site-local IPv6, IPv4 embedded in IPv6 —
+mapped, translated, 6to4, NAT64 — Teredo, and metadata names are refused).
+
+DocumentServer never sees this URL. Its configuration names the service's own source route
+(`/api/documents/source/<sealed source token>` on the internal URL); when DocumentServer asks for
+the document, the service checks the URL again against your current registration, resolves it,
+and fetches it on exactly the addresses it checked, without following redirects, within
+`EDITOR_SOURCE_TIMEOUT_MS` (120 s) and `EDITOR_MAX_SOURCE_BYTES` (100 MB, DocumentServer's own
+default). A name that resolves publicly at `open` and privately later cannot steer that fetch
+inward (DocumentServer's own address filter is bypassed for signed configurations, ADR F3, so it
+could not be relied on). Answer the fetch with `200` and the file; a redirect or any other status
+fails the open. Each source token lives 5 minutes (a new one is minted every time the editor page
+loads) and admits at most 10 fetches; requests whose token does not open are limited per address
+like every other route. The service asks for the file uncompressed (`Accept-Encoding: identity`).
+Send a `Content-Length` when you can: for an uncompressed answer it is passed on, so a transfer cut
+short is an error at DocumentServer, never a short file; a compressed answer is decompressed and
+passed on without a length (chunked, where a cut is the same error).
+
+Use a short-lived signed URL: the session never outlives the URL's stated expiry (GCS and S3 v4,
+or an `Expires` epoch parameter).
+
+### Refusals
+
+`400` with `error`: `key_fields_required`, `profile_mode_mismatch`, `bad_key:<reason>`,
+`file_url_refused:<code>` (`invalid`, `scheme`, `credentials`, `host_not_allowed`, `local_name`,
+`private_address`, `unresolvable`), `file_url_expired`, `panel_url_required`,
+`panel_url_invalid`, `panel_origin_not_registered`, `field_not_allowed` (a legacy field on the
+profile shape), `profile_required` (the legacy shape from a profile consumer, section 8),
+`session_too_large`. `403 profile_not_allowed`. `401` with `Missing Authorization header` or
+`Invalid or expired credentials`. `500 seal_unavailable` (the service has no usable seal key).
+
+## 3. Editor URLs
+
+The editor URL carries an AES-256-GCM sealed token (profile, consumer, key, user, file URL,
+panel URL, expiry; at most 4 KB). It is valid for at most 12 hours (`EDITOR_MAX_SESSION_MS` can
+shorten it) and never past the file URL's expiry. Treat it as a bearer credential for that
+session. The service stores nothing, so **nothing revokes an issued editor URL before it
+expires**: a drop ends DocumentServer's current session for the key, but loading the same URL
+again opens the key again. Bound that by keeping the signed file URL short-lived, and by answering
+any notification for a key you have closed with `409 {"code":"key_closed"}` (section 4).
+
+The page does not yet send `frame-ancestors` (a recorded follow-up), so any site can frame it;
+what a framing site can do is limited to what the URL's holder can already do.
+
+- An expired token from a known consumer shows a page that links to `returnOrigin`.
+- A tampered or unknown token shows the same page with no link and no detail.
+- The page sends `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, and a strict CSP
+  with a per-response nonce that admits only DocumentServer's origin.
+
+**Seal-key rotation.** `EDITOR_SEAL_KEYS` holds the current key and optionally the previous one
+(base64url, 32 bytes each, comma-separated, current first). New tokens are sealed with the
+current key; tokens sealed with the previous key still open until they expire. Remove the
+previous key after the longest session (12 hours).
+
+## 4. Notifications
+
+The service forwards DocumentServer's callbacks to your `callbackUrl` as a signed POST.
+
+```json
+{
+  "key": "crm.ctr_8f3k2.e14",
+  "documentRef": "ctr_8f3k2",
+  "revision": "14",
+  "mode": "e",
+  "status": 2,
+  "event": "saved",
+  "downloadUrl": "https://ds…/cache/files/…",
+  "users": ["u_123"],
+  "lastsave": "2026-10-18T10:00:00.000Z",
+  "deliveryId": "9c1e…"
+}
+```
+
+| status | event | Meaning | Carries |
+|---|---|---|---|
+| 1 | `editing` | A connection opened or closed (`actions[].type` 1 or 0) | `users`, `actions` |
+| 2 | `saved` | Final save after the last editor closed with changes | `downloadUrl`, `deliveryId` |
+| 3 | `save_error` | DocumentServer could not build the final file | — |
+| 4 | `closed` | The last editor closed without changes | — |
+| 6 | `force_saved` | A force-save while editing continues | `downloadUrl`, `deliveryId` |
+| 7 | `force_save_error` | A force-save failed | — |
+
+Before storing a save, check that `key` is the document's **current** key (a save for an older
+revision or a closed key is answered `409 {"code":"key_closed"}`), and fetch `downloadUrl` **only
+from the DocumentServer origin you configured** — the service's `ONLYOFFICE_PUBLIC_URL`, which it
+puts on every `downloadUrl` it forwards (forgotten files included); refuse any other origin.
+Download promptly (the URL is short-lived), validate the file (section 2), store it, then bump
+your revision for the next open. Only statuses 2 and 6 carry a `downloadUrl`.
+
+### Verifying
+
+Every notification carries:
+
+- `X-Editor-Timestamp`: Unix seconds.
+- `X-Editor-Signature`: `v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`. The HMAC key
+  is the secret's text exactly as configured (its UTF-8 bytes; a base64-looking secret is not
+  decoded). During a rotation there is one `v1=` per active secret, comma-separated.
+- `X-Editor-Delivery`: the `deliveryId` (statuses 2 and 6 only).
+
+Verify in this order, against the raw body before parsing:
+
+1. The timestamp is within 5 minutes of your clock.
+2. One `v1=` value matches under your current or previous secret, compared in constant time.
+3. The body's `key` is one you issued.
+4. For statuses 2 and 6, `deliveryId` equals `X-Editor-Delivery` and has not been processed.
+
+The reference implementation is `apps/api/src/reference/verify-notification.ts` (its tests run
+in this repo); port it. When it reports `replay` for a save you already stored, answer `200`
+so the service stops retrying.
+
+`deliveryId` is SHA-256 over the key, status, `lastsave`, and (for status 6) `forcesavetype`.
+It is stable across DocumentServer's retries of one save and distinct between saves, and it does
+not change when secrets rotate. Statuses 1, 3, 4, and 7 carry no `deliveryId` and are idempotent
+by meaning.
+
+**Notification-secret rotation.** Set the new secret as `<ref>` and the old as `<ref>_PREVIOUS`
+on the service, accept both on the consumer, then remove the previous one from both after the
+timestamp window has passed.
+
+### Answering
+
+| Your answer | What happens |
+|---|---|
+| `2xx` | Delivered. |
+| `409` or `410` with `{"code":"key_closed"}` | Acknowledged: you no longer want this key (it is not retried). |
+| Anything else (including `401`, `4xx`, `5xx`, a timeout, or a network failure) | The service answers DocumentServer `503`, asking for a retry. |
+
+DocumentServer retries **only the final save (status 2)**, three times at 1, 2, and 4 seconds
+(ADR F1): roughly a 7-second horizon plus each attempt's time (the service waits at most
+`EDITOR_NOTIFY_TIMEOUT_MS`, 10 seconds by default). Every other status gets exactly one
+attempt. So:
+
+- The final save is the authoritative copy. Force-save notifications are best effort.
+- A final save that was never acknowledged is kept by DocumentServer in its forgotten-files
+  store. Recover it with `GET /api/documents/keys/:key/forgotten` → `{ "downloadUrl": … }` or
+  `{ "none": true }` (DocumentServer holds nothing for the key), store it, then release it with
+  `DELETE` on the same path (`{ "result": "ok" }`, `404` when nothing is held). Both answer `502`
+  with DocumentServer's named error when it is failing — that is never a "none": retry later.
+  Reconcile any key whose closing sequence did not end in a stored save.
+- Respond within the timeout; store asynchronously if you must, but only answer `2xx` once the
+  save is durably queued.
+
+### Edit locks
+
+One user in two tabs produces connect, connect, then a disconnect when one tab closes, while
+`users` still lists the user (ADR F14). Release an edit lock only when a status-1 notification's
+`users` list is empty, or on status 4 or a final status 2 — never on a bare disconnect. Treat a
+repeated connect as a renewal.
+
+## 5. Closing a session (drop)
+
+`POST /api/documents/keys/:key/drop` with `{ "users": ["u_123"] }` (the ids you hold from status-1
+notifications), authenticated as the key's own consumer (another consumer gets `403 not_your_key`).
+DocumentServer disconnects those users; when the last one leaves, the usual final notification
+follows: status 2 if there were changes, status 4 if not. Answers: `{ "result": "ok" }`;
+`404 key_not_found` when DocumentServer has no open session for the key; `409` with
+`callback_url_not_correct`, `no_changes`, or `command_not_correct` (about the request);
+`502` with `docserver_internal` or `invalid_token` (a fault in DocumentServer or in the service's
+configuration), or `docserver_unreachable`. A drop does not revoke issued editor URLs (section 3).
+
+## 6. Conversion
+
+`POST /api/documents/convert` arrives with EDIT-3 (sources and upload targets checked against
+`convertSourceHosts` and `convertUploadHosts`). This section is completed then.
+
+## 7. Plugin data and the panel
+
+The `document` and `template` profiles register the bridge plugin with the panel URL as plugin
+data. The panel token in the URL fragment is visible to the editor page and to DocumentServer
+(accepted exposure, UDOC D14): give it a short lifetime and scope it to the one document. The
+panel protocol is EDIT-5's; this section is completed then.
+
+## 8. The legacy request shape
+
+A request without `profile` is the legacy shape, kept for `fastmail-connect` and the Connect
+extension until they move to profiles (E1):
+
+```json
+{ "fileUrl": "https://…", "fileName": "a.docx", "user": { "id": "…", "name": "…" },
+  "permissions": { "edit": false, "download": true, "print": true } }
+```
+
+`permissions.edit` false opens view-only, otherwise editable. Only a consumer registered without
+`profiles` may use it; a profile consumer's legacy request is refused (`profile_required`), so
+its keys always get the profile rules. Legacy sessions send no notifications (a legacy-only
+consumer has no `callbackUrl`). The `fileUrl` is the service's own internal `/api/files/` URL
+(from `POST /api/files/upload`, handed to DocumentServer as it is) or any https URL that passes
+the address checks (fetched through the source route like a profile file). An empty `fileName`
+falls back to the URL's. Refused: `callbackUrl`, `saveTo`, a GCS `bucket/object` path
+(`legacy_field_removed`), and any profile field without `profile` (`profile_required`). The
+shape is removed once no registered consumer uses it.
+
+## 9. Changelog
+
+**EDIT-2 (2026-10-18).** Added: profiles, sealed editor URLs, the source route (DocumentServer
+fetches documents through the service), signed notifications, drop, the forgotten-files
+endpoints, the expired page. Changed: the legacy shape is refused from profile consumers. Removed:
+
+- `GET /api/documents/:key/download` and `GET /api/sessions` (the session map is gone);
+- the per-request `callbackUrl` and `saveTo` fields (notifications go to the registered
+  `callbackUrl`; the consumer stores the file);
+- GCS `bucket/object` file references and the service's own bucket access;
+- `SESSION_TTL_MS` (sessions now end at the sealed token's expiry).
+
+The `/api/files/` upload behaviour is unchanged.

@@ -7,9 +7,13 @@ services:
     environment:
       - JWT_ENABLED=true
       - JWT_SECRET=${ONLYOFFICE_JWT_SECRET:-dev-only-secret-do-not-use-in-prod}
+      # No marketplace plugins downloaded or installed at start (ADR F5).
+      - PLUGINS_ENABLED=false
     volumes:
       - onlyoffice-data:/var/www/onlyoffice/Data
       - onlyoffice-log:/var/log/onlyoffice
+      # Server-side AI off (ADR F4); configuration only, the image is unmodified.
+      - ./infrastructure/onlyoffice/local-production-linux.json:/etc/onlyoffice/documentserver/local-production-linux.json:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
       interval: 30s
@@ -21,12 +25,21 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    # Notification secrets have consumer-specific names (EDITOR_NOTIFY_SECRET_<CONSUMER>, E4), so the
+    # VM's .env reaches the API whole. Optional, so a fresh checkout still starts.
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "127.0.0.1:3020:3020"
     environment:
       - PORT=3020
       - HOST=0.0.0.0
       - NODE_ENV=${NODE_ENV:-development}
+      # Unset means production rules (E4); only set to `local` on a developer machine.
+      - EDITOR_ENV
+      - EDITOR_SEAL_KEYS
+      - ONLYOFFICE_CALLBACK_URL_ORIGINS
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ONLYOFFICE_URL=http://onlyoffice:80
       - ONLYOFFICE_PUBLIC_URL=${ONLYOFFICE_PUBLIC_URL:-http://localhost:8080}
@@ -37,7 +50,6 @@ services:
       - CONSUMER_API_KEY=${CONSUMER_API_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
       - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
-      - SESSION_TTL_MS=${SESSION_TTL_MS:-}
     depends_on:
       onlyoffice:
         condition: service_healthy

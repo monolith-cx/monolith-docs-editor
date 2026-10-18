@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
+import { safeErrorText } from '../log-safety.js';
 
-const isProduction = config.nodeEnv === 'production';
+const isProduction = config.strict;
 
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', async (_req, reply) => {
@@ -19,7 +20,7 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
         ...(isProduction ? {} : { onlyofficeResponse: text }),
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'unknown error';
+      const message = safeErrorText(err instanceof Error ? err.message : 'unknown error');
       return reply.send({
         api: 'ok',
         onlyoffice: 'unreachable',

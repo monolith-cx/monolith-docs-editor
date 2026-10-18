@@ -37,7 +37,7 @@ monolith-docs/
 │   │       ├── routes/   Health, document, upload, and callback endpoints
 │   │       ├── auth.ts   Consumer auth and hostname enforcement
 │   │       ├── consumers.ts consumer config resolution
-│   │       ├── storage.ts signed URL and GCS integration
+│   │       ├── safe-url.ts, session-token.ts, notify.ts  URL gate, sealed sessions, signed notifications
 │   │       └── server.ts Entry point
 │   └── web/              Placeholder for the standalone frontend workspace
 ├── packages/
@@ -50,7 +50,7 @@ monolith-docs/
 | Component | Purpose |
 | --------- | ------- |
 | **OnlyOffice DocumentServer** | Core document editing engine |
-| **API** | Auth, GCS integration, callback handling, health checks |
+| **API** | Consumer auth, profiles and sealed editor sessions, callback verification, signed notifications, health checks |
 | **Infrastructure** | GCE deployment and hosted service config |
 
 ## Integration Model

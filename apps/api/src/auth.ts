@@ -77,20 +77,24 @@ export const authPlugin = fp(async function authPlugin(app: FastifyInstance): Pr
       return;
     }
 
+    // Document source — DocumentServer fetches by a sealed source token (EDIT-2.2); the route opens it
+    if (req.method === 'GET' && req.url.startsWith('/api/documents/source/')) {
+      return;
+    }
+
     // File serving — OnlyOffice fetches uploaded files by unguessable UUID
     if (req.method === 'GET' && req.url.startsWith('/api/files/')) {
       return;
     }
 
     // In production, consumers MUST be configured
-    const isProduction = config.nodeEnv === 'production';
     const allConsumers = getConsumers();
     if (allConsumers.length === 0) {
-      if (isProduction) {
-        req.log.error('No consumers configured in production — rejecting all API requests');
+      if (config.strict) {
+        req.log.error('No consumers configured outside EDITOR_ENV=local; rejecting all API requests');
         return reply.status(503).send({ error: 'Service not configured' });
       }
-      // Dev mode: skip auth when no consumers configured
+      // EDITOR_ENV=local only: skip auth when no consumers are configured
       return;
     }
 

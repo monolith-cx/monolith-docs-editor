@@ -6,7 +6,7 @@ Standalone AGPL document-editing service built around OnlyOffice DocumentServer 
 
 - API: Fastify + TypeScript on `3020`
 - Document engine: OnlyOffice DocumentServer `10.0.0.1` (pinned by digest, EDIT-1.3) on `8080`
-- Storage: Google Cloud Storage via signed URLs
+- Storage: none held by the service; consumers pass short-lived signed file URLs, which the service fetches on DocumentServer's behalf (the source route), and store saves themselves; `/api/files/` keeps temporary legacy uploads
 - Infrastructure: Docker Compose locally, GCE + NGINX + Cloudflare Tunnel for hosted environments
 - Auth: consumer-issued integration credentials today, Platform SSO planned for the standalone app
 - Runtime: Node.js `24+`, pnpm workspaces, Turbo, Vitest, ESLint
@@ -22,7 +22,7 @@ Standalone AGPL document-editing service built around OnlyOffice DocumentServer 
 - Keep Monolith Docs as a separate service; consumer apps integrate over API
 - OnlyOffice is stateful and should be treated as a GCE-hosted service in production
 - Signed URL round-trips are the core file model; avoid durable file storage by default
-- Consumer auth, hostname binding, callback security, and session TTL behavior are core security boundaries
+- Consumer auth, hostname binding, callback and notification security, and the sealed stateless sessions are core security boundaries
 - Headless integrations and the future standalone app are different surfaces; do not blur them
 
 ## Roadmap And Initiative State

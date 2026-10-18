@@ -29,11 +29,13 @@ Result values:
 
 | Service | Port | Role |
 |---|---|---|
-| `ds` | 18200 | DocumentServer at the pinned tag and digest (`src/run.mjs` `PINNED_IMAGE`), JWT on, private addresses allowed so it can reach the stub (U12 turns this off to test the default) |
+| `ds` | 18200 | DocumentServer at the pinned tag and digest (`src/run.mjs` `PINNED_IMAGE`), JWT on, private addresses allowed so it can reach the stub (U12 turns this off to test the default), hardened as every deployment is (EDIT-2): `aiSettings.enable: false` from `infrastructure/onlyoffice/local-production-linux.json` and `PLUGINS_ENABLED=false` |
 | `stub` | 18201–18203 | A consumer stand-in: fixtures, editor pages, the probe plugin, the callback receiver, a panel page on a second origin, and a third origin for CORS. The receiver answers `ok`, `error` (HTTP 200 `{"error":1}`), `http401`, `http429`, `http500`, `http503`, or `hang`, and records a per-field fingerprint of each signed payload (never the values) |
-| `api` | 18204 | This repo's `apps/api`, built from its Dockerfile, for round trips through the service (S1, S2) |
+| `api` | 18204 | This repo's `apps/api`, rebuilt from its Dockerfile on every run (`up --build`), `EDITOR_ENV=local`, with two consumers: `battery` (every profile, notifications to the stub's `/consumer-callback`) and `legacy` (the legacy request shape only) |
 
-The JWT secret is random for each run. It is written to `.work/.secret` (gitignored) only with `--keep`, so that `--reuse` can attach.
+The JWT secret, seal key, notification secret, and both consumer API keys are random for each run. They are written to `.work/.secret` (gitignored) only with `--keep`, so that `--reuse` can attach.
+
+The stub's `/consumer-callback` verifies each notification's signature and records whether it was valid, the `deliveryId` and its header, the status, and what it answered; `/control/consumer-mode` makes it fail the next N notifications with a chosen status (E2c).
 
 ## How it drives the editor
 
@@ -49,7 +51,8 @@ The JWT secret is random for each run. It is written to `.work/.secret` (gitigno
 
 | Group | Items |
 |---|---|
-| Stack and service | S0, S1, S2 |
+| Stack and service | S0; S1 (a `document` session through the service, signed notifications), S2 (the exact legacy request bodies) |
+| EDIT-2 acceptance | E2a (the `document` profile's UI; F16), E2b (a service restart between edit and save), E2c (consumer 503 and 401, then recovery), E2d (drop with and without edits), E2e (tampered token, refusals at open) |
 | Spike items on the pinned release | 3, 4, 5, 7, 8, 9a–9e, each field item on `sdtContentLocked` and `contentLocked` (`cl` suffix) |
 | Loose-lock behaviour | 7d (delete with the sentence), 7p (copy-paste), 7x (cut-and-paste) |
 | Unproven before EDIT-1 | U1–U14 (see the plan's EDIT-1.5) |
@@ -58,4 +61,5 @@ The JWT secret is random for each run. It is written to `.work/.secret` (gitigno
 
 - Fixtures are generated, and every value in them is made up.
 - Nothing leaves the machine except image pulls.
+- Results go to `docs/spikes/results/<release>/<date>.{md,json}` (`--only` runs add `-partial-<hhmm>`); a second run on the same date gets its start time, so a record is never overwritten.
 - DocumentServer plus Chrome needs several GB of memory. Check `~/bin/heavy` first, and run one battery at a time.

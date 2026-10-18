@@ -34,8 +34,8 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 // Temp upload directory — cleaned up after TTL expires
-const UPLOAD_DIR = process.env['UPLOAD_DIR'] ?? '/tmp/monolith-docs-uploads';
-const UPLOAD_TTL_MS = Number(process.env['UPLOAD_TTL_MS'] ?? 24 * 60 * 60 * 1000); // 24h
+const UPLOAD_DIR = config.uploadDir;
+const UPLOAD_TTL_MS = config.uploadTtlMs;
 
 // Track uploads for cleanup
 const uploads = new Map<string, { path: string; createdAt: number }>();

@@ -26,7 +26,7 @@ const apiKeyConsumers: Consumer[] = [{
   auth: { mode: 'api-key', key: 'test-dev-key' },
 }];
 
-const payload = { fileUrl: 'https://example.com/test.docx', user: { id: 'u1', name: 'User' } };
+const payload = { fileUrl: 'https://127.0.0.1/test.docx', user: { id: 'u1', name: 'User' } };
 
 describe('HMAC auth', () => {
   it('authenticates with valid HMAC JWT', async () => {
@@ -131,10 +131,10 @@ describe('Auth-exempt paths', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('/editor/:key does not require auth', async () => {
+  it('/editor/:token does not require auth (an unknown token gets the expired page)', async () => {
     const app = freshApp(hmacConsumers);
-    const res = await app.inject({ method: 'GET', url: '/editor/some-key' });
-    expect(res.statusCode).toBe(404);
+    const res = await app.inject({ method: 'GET', url: '/editor/some-token' });
+    expect(res.statusCode).toBe(410);
   });
 
   it('/api/documents/callback does not require consumer auth', async () => {

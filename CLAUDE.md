@@ -28,7 +28,7 @@ Rules:
 
 - API: Fastify + TypeScript on `3020`
 - OnlyOffice DocumentServer: `10.0.0.1` (pinned by digest in `docker-compose.yml`; change only through a battery run, `scripts/editor-battery/`) on `8080`
-- Storage: Google Cloud Storage via signed URLs
+- Storage: none held by the service; consumers pass short-lived signed file URLs, which the service fetches on DocumentServer's behalf (the source route), and store saves themselves; `/api/files/` keeps temporary legacy uploads
 - Infrastructure: Docker Compose locally, GCE + NGINX + Cloudflare Tunnel for hosted environments
 - Auth: consumer-issued integration credentials today, Platform SSO planned for the standalone app surface
 - Runtime: Node.js `24+`, pnpm workspaces, Turbo, TypeScript `6.0.3`
@@ -45,7 +45,9 @@ apps/
       routes/      health, document, upload, and callback routes
       auth.ts      consumer auth and request identity enforcement
       consumers.ts consumer config and hostname binding
-      storage.ts   signed URL and GCS integration
+      safe-url.ts  the only gate for document, callback, and conversion URLs (resolve, refuse private addresses, pin)
+      session-token.ts  sealed per-open editor tokens (stateless sessions, EDIT-2)
+      notify.ts    signed consumer notifications; reference/verify-notification.ts is the consumer-side verifier
   web/            standalone frontend workspace (scaffolded in Phase 0)
 
 packages/
@@ -104,7 +106,9 @@ Core patterns:
 
 - Keep request validation, auth, and storage handling explicit.
 - Routes stay thin where possible; shared logic belongs in reusable modules.
-- Preserve callback idempotency, session TTL behavior, and hostname-aware access checks.
+- Preserve the stateless session model (EDIT-2, UDOC D13): no session map and no database; everything an editor page needs travels in the sealed token, and callbacks route by the document key's consumer. Preserve notification signing and `deliveryId` stability, callback verification from the verified JWT payload, and hostname-aware access checks.
+- Every URL the service or DocumentServer fetches on a consumer's behalf passes `safe-url.ts`; DocumentServer bypasses its own address filter for signed configs (ADR F3).
+- `docs/guides/consumer-integration.md` is the consumer-facing description of the API; change it with the API.
 - Signed URL fetch/upload behavior must remain observable and bounded; do not hide timeout, SSRF, or invalid input risks.
 - Treat infrastructure secrets and consumer credentials as configuration, never hardcoded logic.
 
@@ -112,7 +116,7 @@ Core patterns:
 
 - Run the strongest relevant checks for each touched surface.
 - Use `pnpm --filter @monolith-docs/api run typecheck`, `pnpm --filter @monolith-docs/api run lint`, `pnpm --filter @monolith-docs/api run test`, and `docker compose config` where appropriate.
-- Do not claim OnlyOffice, GCS, callback, or hosted integration flows are verified if you did not actually exercise them.
+- Do not claim OnlyOffice, callback, notification, or hosted integration flows are verified if you did not actually exercise them.
 - Treat weak verification as `code-complete`, not `complete`.
 
 ## Initiative Workflow
