@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { configProblems, loadConfig } from './config.js';
+import { configProblems, loadConfig, trustProxyProblem } from './config.js';
 
 const strong = {
   EDITOR_SEAL_KEYS: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE',
@@ -58,6 +58,27 @@ describe('config (E4)', () => {
     }
     const defaults = loadConfig({});
     expect([defaults.sourceTimeoutMs, defaults.sourceConcurrency, defaults.convertTimeoutMs, defaults.convertConcurrency, defaults.convertConcurrencyTotal]).toEqual([30_000, 4, 90_000, 2, 4]);
+  });
+
+  it('takes TRUST_PROXY as a hop count or addresses, never everyone (EDIT-5.1)', () => {
+    expect(loadConfig({}).trustProxy).toBe(false);
+    expect(loadConfig({ TRUST_PROXY: '1' }).trustProxy).toBe(1);
+    expect(loadConfig({ TRUST_PROXY: '10.0.0.5, 127.0.0.1' }).trustProxy).toBe('10.0.0.5, 127.0.0.1');
+    expect(configProblems(loadConfig({ ...strong, TRUST_PROXY: '10.0.0.0/8, 127.0.0.1' }), undefined).join(' ')).not.toContain('TRUST_PROXY');
+    for (const proxies of ['172.18.0.0/16', '10.0.0.0/8', 'loopback, uniquelocal', '::1', 'fd00::/64', '10.1.2.3/255.255.255.0']) {
+      expect(configProblems(loadConfig({ ...strong, TRUST_PROXY: proxies }), undefined).join(' ')).not.toContain('TRUST_PROXY');
+    }
+    // Everyone, in every form Fastify would accept: wildcards, broad ranges, a netmask, and IPv6
+    // ranges that cover the IPv4-mapped space Fastify matches IPv4 clients against.
+    for (const everyone of ['0.0.0.0/1', '0.0.0.0/7', '0.0.0.0/128.0.0.0', '::/16', '::/32', '::/80', '::ffff:0:0/96', '::ffff:0.0.0.0/96', '::ffff:0:0/100', '10.0.0.1, 0.0.0.0/1', '4']) {
+      expect(configProblems(loadConfig({ ...strong, TRUST_PROXY: everyone }), undefined).join(' ')).toContain('TRUST_PROXY');
+    }
+    // What Fastify cannot parse is reported here instead of crashing the boot.
+    for (const malformed of ['true', '*', 'all', '0.0.0.0/0', '::/0', '10.0.0.1,', '10.0.0.1, proxy.internal', '10.0.0.0/33', 'fd00::/255.0.0.0']) {
+      expect(trustProxyProblem(malformed)).toMatch(/is not an address/);
+    }
+    expect(trustProxyProblem('::ffff:0:0/96')).toMatch(/more than one IPv4/);
+    expect(trustProxyProblem('::/31')).toMatch(/broader than \/32/);
   });
 
   it('caps the session lifetime at 12 hours and defaults the callback URL origins to DocumentServer', () => {

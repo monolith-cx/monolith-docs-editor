@@ -4,7 +4,7 @@ How an app (a *consumer*) opens documents in the Monolith editor service, receiv
 closes sessions. This is the service side of the ecosystem contract `document-editing.md`
 (UDOC-2.1, drafted in Platform under `docs/ecosystem/contracts-draft/`). Written at EDIT-2
 (2026-10-18) against OnlyOffice DocumentServer 10.0.0.1; the measured behaviour it relies on is in
-`docs/adr/2026-10-17-onlyoffice-release-and-licence.md` (findings F1–F16).
+`docs/adr/2026-10-17-onlyoffice-release-and-licence.md` (findings F1–F18).
 
 The service is stateless: it keeps no session map and no database. Everything an editor page
 needs travels in a sealed editor URL, and every DocumentServer callback is routed by the document
@@ -287,12 +287,84 @@ infrastructure; nothing else keeps it. Convert a finalized document only: tracke
 as both the deleted and inserted text and comments are dropped (ADR F12), which is why finalize
 requires none (UDOC D16).
 
-## 7. Plugin data and the panel
+## 7. The panel (EDIT-5)
 
-The `document` and `template` profiles register the bridge plugin with the panel URL as plugin
-data. The panel token in the URL fragment is visible to the editor page and to DocumentServer
-(accepted exposure, UDOC D14): give it a short lifetime and scope it to the one document. The
-panel protocol is EDIT-5's; this section is completed then.
+The `document` and `template` profiles open a right-side panel, **Document panel**, hosted by the
+bridge plugin. The plugin loads your `panelUrl` in an iframe and answers that page's requests with
+a fixed set of operations on the open document. Your proprietary UI lives in your page; the plugin
+is a thin AGPL bridge served from the service's own origin (`API_PUBLIC_URL`, the **plugin origin**).
+
+The user can close the panel (its × button) and reopen it from the **Plugins** tab, which offers
+the Document panel and nothing else; reloading the editor page brings it back with the same
+`panelUrl`. Each time, your page is loaded fresh and receives `udoc.ready` again.
+
+### Your panel page
+
+- **Origin checks:** accept a message only when `event.origin` is the plugin origin and
+  `event.source === window.parent`; post only with `targetOrigin` set to the plugin origin, never `*`.
+- **Framing:** send `Content-Security-Policy: frame-ancestors` listing exactly the frame chain: the
+  plugin origin (`API_PUBLIC_URL`, which also serves the editor page), DocumentServer's public origin,
+  and your own origin when your app embeds the editor page.
+- **The panel token** travels in the URL fragment (`#…`), visible to the editor page and to
+  DocumentServer (accepted exposure, UDOC D14): give it a short lifetime, scope it to the one
+  document, and exchange it for a short pass held in memory; never put the pass in a query string.
+- `panelUrl`'s origin must be one of your `panelOrigins` (refused at `open` otherwise).
+
+### Messages
+
+```js
+// panel → plugin
+{ type: 'udoc.hello' }                                  // ask for udoc.ready again
+{ type: 'udoc.request', id: 'r1', op: 'getText', args: {} }
+// plugin → panel
+{ type: 'udoc.ready', protocol: 1, operations: ['getText', 'getSelection', 'insertField', 'insertToken', 'applySuggestion', 'addComment'] }
+{ type: 'udoc.response', id: 'r1', ok: true, result: { … } }
+{ type: 'udoc.response', id: 'r1', ok: false, error: 'stale_anchor' }
+```
+
+The plugin sends `udoc.ready` when your page has loaded and again on `udoc.hello`. Every
+well-formed request (`type: 'udoc.request'` with a string or number `id`) gets exactly one response
+with its `id`; anything else is dropped. Operations run one at a time in the order received;
+refusals (`unsupported`, `invalid_args`) answer at once. An operation DocumentServer does not finish
+within 30 seconds answers `failed` and the next one runs; the editor may still apply it later, so
+after a `failed` re-read with `getText` before retrying an insertion, or it may land twice. Each
+operation that changes the document is **one undo step**.
+
+### Operations (protocol 1)
+
+| `op` | `args` | `result` |
+|---|---|---|
+| `getText` | — | `{ body: [{ index, text, fields }], headers: [{ section, type, paragraphs }], footers: […], blocks: [{ tag, kind, rowId }] }`; each field is `{ start, end, tag, kind: 'field' \| 'block' \| 'other', rowId }`, with offsets into its paragraph's `text` |
+| `getSelection` | — | `{ text }` |
+| `insertField` | `{ rowId, label, value, kind: 'inline' \| 'block' }` | `{ tag }`: inserts at the cursor a `field:<rowId>` inline control with the loose lock (`contentLocked`) or a `block:<rowId>` block control with the strict lock (`sdtContentLocked`); a newline in `value` becomes a line break (UDOC D11) |
+| `insertToken` | `{ token }` | `{}`: plain text at the cursor (template mode) |
+| `applySuggestion` | `{ paragraphIndex, context, occurrence, find, replace, comment?: { text, author } }` | `{}`, or `{ commentPlaced }` with a comment: replaces the anchored text as a tracked change (track changes forced on, then restored, also if the edit fails) and puts the comment on the inserted text; `commentPlaced: false` means the inserted text could not be located exactly and no comment was added (the suggestion itself was applied; for example "b" → "bb", where the kept deleted text and the inserted text run together as "bbb"). An empty `replace` is a pure deletion and takes no comment (`invalid_args`); comment first with `addComment`, then delete |
+| `addComment` | `{ paragraphIndex, context, occurrence, find, text, author }` | `{}` |
+
+**Anchors.** `paragraphIndex` is a body paragraph's `index` from `getText`; `occurrence` is the
+0-based index among the non-overlapping occurrences of `find` in that paragraph's `text` (counted
+left to right, as the editor's search counts them: in "aaaa", "aa" occurs twice); `context` is text around
+that occurrence, which must still be there. The anchor is found and re-checked inside the same edit,
+so a paragraph the user changed since your `getText` is refused, never guessed. A suggestion or
+comment is anchored in the body only.
+
+**Errors.** `stale_anchor` (the paragraph is gone or the context no longer surrounds the occurrence:
+read `getText` again), `not_found` (no such occurrence), `inside_field` (the text lies in a field
+control: suggestions never edit field values), `invalid_args`, `unsupported` (unknown `op`),
+`failed`.
+
+**Argument rules.** `rowId` is a string matching `[0-9A-Za-z_-]{1,64}`. No text the panel writes
+(`value`, `label`, `token`, `replace`, comment `text`, `author`, and the anchor's `find` and
+`context`) may contain control characters other than tab and newline, U+FFFE/U+FFFF, a lone
+surrogate, or the signer-tag grammar (`\s1\`, UDOC D15). `label`, `token`, `replace`, and `author`
+are single-line. Caps: `value` 10,000 characters, `context` 4,000, `replace` 4,000, comment `text`
+2,000, `find` 1,000, `label` 200, `token` 200, `author` 100. Only the operation's own arguments
+reach the editor; other keys are dropped. A replacement that completes a signer tag together with
+the text around it is not detected: Docs' own anchor check at send time is the backstop.
+
+**What the bridge does not guarantee.** The editor enforces locks only in the browser: a field can
+still be removed by the user (ADR F9, F16), so validate every saved file (section 2). Tracked changes
+and comments render in a PDF (ADR F12): finalize only documents with none pending.
 
 ## 8. The legacy request shape
 
@@ -315,6 +387,9 @@ falls back to the URL's. Refused: `callbackUrl`, `saveTo`, a GCS `bucket/object`
 shape is removed once no registered consumer uses it.
 
 ## 9. Changelog
+
+**EDIT-5 (2026-10-18).** Added: the panel bridge (section 7), served from `/plugins/udoc-bridge/` on
+the service's origin; protocol 1 with six operations.
 
 **EDIT-3 (2026-10-18).** Added: `POST /api/documents/convert` (section 6). Changed: metadata
 addresses are refused everywhere, `EDITOR_ENV=local` included; the source route reads the whole

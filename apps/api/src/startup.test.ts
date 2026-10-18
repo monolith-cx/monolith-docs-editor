@@ -2,6 +2,9 @@
  * Startup refusal and the startup callbackUrl warning, under a strict EDITOR_ENV (EDIT-2 review
  * attempt 2: Codex H1, Sonnet M4). Modules are loaded afresh per case with the environment stubbed.
  */
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const STRICT = {
@@ -49,6 +52,30 @@ describe('startupProblems under EDITOR_ENV=production', () => {
     expect(weak.startup.startupProblems().join(' ')).toContain('at least 32 bytes');
     const strong = await load({ CONSUMERS: JSON.stringify([crm()]), EDITOR_NOTIFY_SECRET_STARTUP_CRM: 's'.repeat(40) });
     expect(strong.startup.startupProblems()).toEqual([]);
+  });
+});
+
+describe('the bridge plugin files (EDIT-5)', () => {
+  it('refuses to start when a served plugin file is missing', async () => {
+    const { startup } = await load({ CONSUMERS: JSON.stringify([crm()]), EDITOR_NOTIFY_SECRET_STARTUP_CRM: 's'.repeat(40), EDITOR_PLUGIN_DIR: '/nonexistent-plugin-dir' });
+    expect(startup.startupProblems().join(' ')).toContain('the bridge plugin is missing config.json, index.html, bridge.js, commands.js, icon.png');
+  });
+
+  it('refuses a plugin file that is a directory or cannot be read', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'plugin-files-'));
+    try {
+      for (const name of ['index.html', 'bridge.js', 'commands.js', 'icon.png']) writeFileSync(path.join(dir, name), 'x');
+      mkdirSync(path.join(dir, 'config.json'));
+      const { startup } = await load({ CONSUMERS: JSON.stringify([crm()]), EDITOR_NOTIFY_SECRET_STARTUP_CRM: 's'.repeat(40), EDITOR_PLUGIN_DIR: dir });
+      expect(startup.startupProblems().join(' ')).toContain('the bridge plugin is missing config.json in');
+      rmSync(path.join(dir, 'config.json'), { recursive: true });
+      writeFileSync(path.join(dir, 'config.json'), '{}');
+      chmodSync(path.join(dir, 'bridge.js'), 0o000);
+      // Root reads anything; the check is meaningful only for an ordinary user.
+      if (process.getuid?.() !== 0) expect(startup.startupProblems().join(' ')).toContain('the bridge plugin is missing bridge.js in');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

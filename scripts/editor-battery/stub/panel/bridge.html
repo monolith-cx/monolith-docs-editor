@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Battery bridge panel</title></head>
+<body style="margin:0;font:12px sans-serif">
+<div id="log">panel loaded</div>
+<script>
+// A consumer's panel page as UDOC D14 asks (EDIT-5 battery): it trusts only the bridge plugin's
+// origin (from the fragment here; a real consumer configures it) and only its parent window, and
+// posts only to that origin. The runner drives it through window.__panel.
+(function () {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const pluginOrigin = params.get('pluginOrigin');
+  const pending = new Map();
+  let next = 1;
+  window.__panel = { pluginOrigin, token: params.get('token'), ready: null, readyCount: 0, received: [], ignored: [], responses: [] };
+  window.__panel.request = function (op, args) {
+    const id = 'r' + next++;
+    return new Promise(function (resolve) {
+      pending.set(id, resolve);
+      window.parent.postMessage({ type: 'udoc.request', id: id, op: op, args: args }, pluginOrigin);
+    });
+  };
+  window.__panel.hello = function () {
+    window.parent.postMessage({ type: 'udoc.hello' }, pluginOrigin);
+  };
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent || event.origin !== pluginOrigin) {
+      window.__panel.ignored.push({ origin: event.origin, fromParent: event.source === window.parent });
+      return;
+    }
+    const data = event.data || {};
+    window.__panel.received.push(data.type);
+    if (data.type === 'udoc.ready') {
+      window.__panel.ready = data;
+      window.__panel.readyCount += 1;
+      document.getElementById('log').textContent = 'ready: ' + data.operations.join(', ');
+    } else if (data.type === 'udoc.response' && pending.has(data.id)) {
+      window.__panel.responses.push(data);
+      pending.get(data.id)(data);
+      pending.delete(data.id);
+    }
+  });
+  window.__panel.hello();
+})();
+</script>
+</body>
+</html>

@@ -32,6 +32,8 @@ RUN pnpm install --frozen-lockfile --prod --filter @monolith-docs/api...
 
 COPY --from=build /workspace/apps/api/dist/ ./apps/api/dist/
 COPY --from=build /workspace/apps/api/src/fixtures/ ./apps/api/dist/fixtures/
+# The bridge plugin's served files only (EDIT-5.1); its tests and package metadata stay out.
+COPY apps/plugin/config.json apps/plugin/index.html apps/plugin/bridge.js apps/plugin/commands.js apps/plugin/icon.png ./apps/plugin/
 
 EXPOSE 3020
 CMD ["node", "apps/api/dist/server.js"]

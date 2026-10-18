@@ -50,6 +50,7 @@ apps/
       notify.ts    signed consumer notifications; reference/verify-notification.ts is the consumer-side verifier
       convert.ts   PDF conversion through the source route and a pinned upload (EDIT-3)
       capped-read.ts, source-outcomes.ts  whole reads under a cap; a conversion's source outcome and abort
+  plugin/         the panel bridge plugin (EDIT-5): plain JS with @ts-check, no build, served by apps/api at /plugins/udoc-bridge/
   web/            standalone frontend workspace (scaffolded in Phase 0)
 
 packages/
@@ -111,6 +112,7 @@ Core patterns:
 - Preserve the stateless session model (EDIT-2, UDOC D13): no session map and no database; everything an editor page needs travels in the sealed token, and callbacks route by the document key's consumer. Preserve notification signing and `deliveryId` stability, callback verification from the verified JWT payload, and hostname-aware access checks.
 - Every URL the service or DocumentServer fetches on a consumer's behalf passes `safe-url.ts`; DocumentServer bypasses its own address filter for signed configs (ADR F3).
 - `docs/guides/consumer-integration.md` is the consumer-facing description of the API; change it with the API.
+- The bridge plugin (`apps/plugin/`) is AGPL and stays a thin bridge: no runtime dependencies, no `@monolith-*` code, relative imports only (`scripts/check-plugin-deps.mjs`). Its `callCommand` functions are self-contained and find every anchor inside the same command; operations are only ever added (protocol versioning). Its page CSP is the narrowest DocumentServer allows (ADR F18); never widen it beyond that page.
 - DocumentServer only ever receives a complete source file or an error before any byte: the source route reads the whole file first (ADR F17). A partial or slow download wedges DocumentServer's one converter, which also serves every editor open; never stream a source to it.
 - Signed URL fetch/upload behavior must remain observable and bounded; do not hide timeout, SSRF, or invalid input risks.
 - Treat infrastructure secrets and consumer credentials as configuration, never hardcoded logic.
@@ -119,6 +121,7 @@ Core patterns:
 
 - Run the strongest relevant checks for each touched surface.
 - Use `pnpm --filter @monolith-docs/api run typecheck`, `pnpm --filter @monolith-docs/api run lint`, `pnpm --filter @monolith-docs/api run test`, and `docker compose config` where appropriate.
+- The plugin: `pnpm --filter @monolith-docs/plugin run typecheck|test|lint`; `lint` is `scripts/check-plugin-deps.mjs`, which must pass at every checkpoint (it moves into CI with DOC-DPP).
 - Do not claim OnlyOffice, callback, notification, or hosted integration flows are verified if you did not actually exercise them.
 - Treat weak verification as `code-complete`, not `complete`.
 

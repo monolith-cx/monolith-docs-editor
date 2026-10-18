@@ -23,6 +23,9 @@ importers:
       '@fastify/multipart':
         specifier: ^9.4.0
         version: 9.4.0
+      '@fastify/proxy-addr':
+        specifier: ^5.1.0
+        version: 5.1.0
       '@fastify/rate-limit':
         specifier: ^10.3.0
         version: 10.3.0
@@ -72,6 +75,15 @@ importers:
       typescript-eslint:
         specifier: ^8.26.1
         version: 8.58.2(eslint@9.39.4(jiti@2.6.1))(typescript@6.0.3)
+      vitest:
+        specifier: ^3.0.9
+        version: 3.2.4(@types/node@24.12.2)(jiti@2.6.1)(tsx@4.21.0)
+
+  apps/plugin:
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
       vitest:
         specifier: ^3.0.9
         version: 3.2.4(@types/node@24.12.2)(jiti@2.6.1)(tsx@4.21.0)

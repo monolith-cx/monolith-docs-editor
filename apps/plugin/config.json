@@ -1,0 +1,23 @@
+{
+  "name": "Document panel",
+  "guid": "asc.{6F1C0E5A-2B7D-4E3A-9C1B-5D8E7F2A4B60}",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Monolith document panel bridge (UDOC D14): hosts the consumer's panel page",
+      "url": "index.html",
+      "icons": ["icon.png", "icon.png"],
+      "isViewer": false,
+      "EditorsSupport": ["word"],
+      "isVisual": true,
+      "isModal": false,
+      "isInsideMode": true,
+      "initDataType": "none",
+      "initData": "",
+      "isUpdateOleOnResize": false,
+      "buttons": [],
+      "type": "panelRight",
+      "size": [380, 600]
+    }
+  ]
+}

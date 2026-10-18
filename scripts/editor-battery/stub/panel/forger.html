@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Battery forger</title></head>
+<body>
+<script>
+// E5c: a page on the panel's own origin but in the wrong window. The battery has the panel page
+// frame it, so it sits inside the panel: same origin as the panel, but not the panel's window. It
+// posts one forged request to its grandparent, the plugin's frame; the bridge must ignore it
+// (wrong event.source). The body reports what it did.
+(function () {
+  const plugin = window.parent.parent;
+  plugin.postMessage({ type: 'udoc.request', id: 'forged-same-origin', op: 'insertToken', args: { token: 'FORGEDSAMEORIGIN' } }, '*');
+  document.body.textContent = 'forged 1';
+})();
+</script>
+</body>
+</html>

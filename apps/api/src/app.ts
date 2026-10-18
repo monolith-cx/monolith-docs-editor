@@ -10,6 +10,7 @@ import { authPlugin } from './auth.js';
 import { healthRoutes } from './routes/health.js';
 import { documentRoutes } from './routes/documents.js';
 import { fileRoutes } from './routes/files.js';
+import { PLUGIN_PREFIX, pluginRoutes } from './routes/plugin.js';
 import { MAX_TOKEN_CHARS } from './session-token.js';
 import { LOG_REDACT_CENSOR, LOG_REDACT_PATHS, redactRequestPath, scrubLogArguments, serializeError, serializeRequest } from './log-safety.js';
 
@@ -25,6 +26,7 @@ export interface BuildAppOptions {
 
 export function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({
+    trustProxy: config.trustProxy,
     // A sealed editor token travels as one path parameter (EDIT-2.3); top-level maxParamLength is deprecated (FSTDEP022).
     routerOptions: { maxParamLength: MAX_PARAM_LENGTH },
     logger: {
@@ -52,7 +54,13 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(rateLimit, {
     max: config.rateLimitMax,
     timeWindow: config.rateLimitWindowMs,
-    allowList: (req) => req.url === '/api/documents/callback',
+    allowList: (req) => req.url === '/api/documents/callback' || (req.method === 'GET' && req.url.startsWith(PLUGIN_PREFIX)),
+  });
+
+  // Trusting a proxy for the client address (TRUST_PROXY) must not let a client choose the host name
+  // that binds it to a consumer: neither nginx nor the tunnel sets X-Forwarded-Host, so it is dropped.
+  app.addHook('onRequest', async (req) => {
+    delete req.headers['x-forwarded-host'];
   });
 
   app.register(authPlugin);
@@ -68,7 +76,9 @@ export function buildApp(options: BuildAppOptions = {}) {
       reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
 
-    if (req.url.startsWith('/editor/')) {
+    if (req.url.startsWith(PLUGIN_PREFIX)) {
+      // The bridge plugin is framed by DocumentServer: its route sets frame-ancestors itself (EDIT-5.1).
+    } else if (req.url.startsWith('/editor/')) {
       // Editor pages are loaded in iframes by consuming apps (Fastmail Connect, CRM).
       // Allow cross-origin framing — no X-Frame-Options or restrictive CSP.
     } else if (req.url.startsWith('/api/')) {
@@ -91,6 +101,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.register(healthRoutes);
   app.register(documentRoutes);
   app.register(fileRoutes);
+  app.register(pluginRoutes);
 
   // Fastify's own 404 message names the full URL ("Route GET:/editor/<token>/ not found"), which
   // would put a sealed token or a document key in the log (EDIT-4). Log the redacted path only.

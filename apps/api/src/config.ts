@@ -10,6 +10,10 @@
  */
 
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import proxyAddr from '@fastify/proxy-addr';
 
 export type EditorEnv = 'local' | 'dev' | 'staging' | 'production';
 
@@ -57,6 +61,13 @@ export interface Config {
   notifySecrets: Record<string, string>;
 
   uploadDir: string;
+  /**
+   * Which proxies' forwarded addresses to believe (Fastify `trustProxy`): a hop count or a list of
+   * addresses/CIDRs, never "everyone", which would let a client choose its own address for the limiter.
+   */
+  trustProxy: number | string | false;
+  /** The bridge plugin's files (EDIT-5): `apps/plugin` in the repository and in the image. */
+  pluginDir: string;
   uploadTtlMs: number;
 }
 
@@ -77,6 +88,43 @@ function parseCorsOrigins(raw: string | undefined): string[] | true {
 
 function parseSealKeys(raw: string | undefined): Buffer[] {
   return parseList(raw).map((k) => Buffer.from(k, 'base64url'));
+}
+
+function parseTrustProxy(raw: string | undefined): number | string | false {
+  const v = raw?.trim();
+  if (!v) return false;
+  if (/^\d+$/.test(v)) return Number(v);
+  return v;
+}
+
+/**
+ * What is wrong with a TRUST_PROXY list, judged on the function Fastify itself will compile from it
+ * (`@fastify/proxy-addr`), so a parse here cannot disagree with Fastify's: an entry it cannot parse
+ * (Fastify would throw at boot), an IPv6 range broader than /32, or any entry that covers addresses
+ * in two different IPv4 /8 blocks. That last test is exact for "broader than /8" (a range of /7 or
+ * wider holds two adjacent /8 blocks whole, a /8 or narrower lies inside one) and catches every form
+ * that reaches IPv4 clients: a netmask, and an IPv6 range covering the IPv4-mapped space (`::/32`,
+ * `::ffff:0:0/96`), which Fastify matches IPv4 clients against.
+ */
+export function trustProxyProblem(list: string): string | null {
+  for (const entry of list.split(',').map((e) => e.trim())) {
+    // proxy-addr's named private ranges: fixed, and never public addresses.
+    if (entry === 'loopback' || entry === 'linklocal' || entry === 'uniquelocal') continue;
+    let trust: (addr: string, i: number) => boolean;
+    try {
+      trust = proxyAddr.compile(entry);
+    } catch {
+      return `TRUST_PROXY entry "${entry.slice(0, 64)}" is not an address, a CIDR, or loopback/linklocal/uniquelocal`;
+    }
+    const slash = entry.lastIndexOf('/');
+    if (slash !== -1 && isIP(entry.slice(0, slash)) === 6 && Number(entry.slice(slash + 1)) < 32) {
+      return 'TRUST_PROXY must name the proxies, never everyone (no IPv6 range broader than /32)';
+    }
+    const blocks = new Set<number>();
+    for (let octet = 0; octet < 256; octet++) if (trust(`${octet}.0.0.1`, 0)) blocks.add(octet);
+    if (blocks.size > 1) return 'TRUST_PROXY must name the proxies, never everyone (no range that covers more than one IPv4 /8)';
+  }
+  return null;
 }
 
 function originOf(url: string): string | null {
@@ -136,6 +184,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     notifySecrets,
 
     uploadDir: env['UPLOAD_DIR'] ?? '/tmp/monolith-docs-uploads',
+    trustProxy: parseTrustProxy(env['TRUST_PROXY']),
+    // From apps/api/src or apps/api/dist, two levels up is apps/.
+    pluginDir: env['EDITOR_PLUGIN_DIR'] ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'plugin'),
     uploadTtlMs: Number(env['UPLOAD_TTL_MS'] ?? 24 * 60 * 60 * 1000),
   };
 }
@@ -177,6 +228,9 @@ export function configProblems(cfg: Config, rawEditorEnv: string | undefined): s
   if (cfg.maxConvertOutputBytes > DEFAULT_MAX_SOURCE_BYTES) problems.push(`EDITOR_MAX_CONVERT_OUTPUT_BYTES must be at most ${DEFAULT_MAX_SOURCE_BYTES}`);
   // A Cloudflare-proxied request is held open 100 s; past that the consumer never gets the answer.
   if (cfg.convertTimeoutMs > 95_000) problems.push('EDITOR_CONVERT_TIMEOUT_MS must be at most 95000 (a proxied request is held open 100 s)');
+  if (typeof cfg.trustProxy === 'number' && cfg.trustProxy > 3) problems.push('TRUST_PROXY hop count must be at most 3');
+  const trustProblem = typeof cfg.trustProxy === 'string' ? trustProxyProblem(cfg.trustProxy) : null;
+  if (trustProblem) problems.push(trustProblem);
   if (cfg.convertConcurrency > cfg.convertConcurrencyTotal) problems.push('EDITOR_CONVERT_CONCURRENCY must not exceed EDITOR_CONVERT_CONCURRENCY_TOTAL');
   if (cfg.notifyTimeoutMs >= 600_000) problems.push("EDITOR_NOTIFY_TIMEOUT_MS must stay below DocumentServer's 10-minute callback timeout");
   if (!cfg.strict) return problems;

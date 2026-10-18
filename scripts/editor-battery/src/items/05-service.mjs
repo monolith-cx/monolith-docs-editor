@@ -8,7 +8,7 @@ import { STUB_INTERNAL, WORK_DIR, events, resetStub, restartApi, setConsumerMode
 
 const API = 'http://127.0.0.1:18204';
 
-async function openViaApi(secrets, body, legacy = false) {
+export async function openViaApi(secrets, body, legacy = false) {
   const res = await fetch(`${API}/api/documents/open`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${legacy ? secrets.legacyKey : secrets.apiKey}` },
@@ -18,7 +18,7 @@ async function openViaApi(secrets, body, legacy = false) {
 }
 
 let docCounter = 0;
-function documentBody(over = {}) {
+export function documentBody(over = {}) {
   docCounter += 1;
   return {
     profile: 'document',
@@ -34,7 +34,7 @@ function documentBody(over = {}) {
 }
 
 /** Opens a page the service rendered and waits until DocumentServer drew the document. */
-async function openServicePage(context, editorUrl) {
+export async function openServicePage(context, editorUrl) {
   const page = await context.newPage();
   const cspViolations = [];
   page.on('console', (msg) => {
@@ -54,7 +54,7 @@ async function openServicePage(context, editorUrl) {
   return { page, cspViolations };
 }
 
-async function typeAtDocumentEnd(page, text) {
+export async function typeAtDocumentEnd(page, text) {
   const box = await page.locator('iframe[name="frameEditor"]').boundingBox();
   await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.5);
   await page.keyboard.press('Control+End');
@@ -62,7 +62,7 @@ async function typeAtDocumentEnd(page, text) {
   await sleep(4000);
 }
 
-async function savedText(event) {
+export async function savedText(event) {
   if (!event?.saved?.file) return [];
   const { documentXml } = await openDocx(await stub(`/saved/${event.saved.file}`));
   return paragraphs(documentXml);
@@ -151,7 +151,7 @@ const s2 = {
 const e2a = {
   id: 'E2a',
   order: 7,
-  title: 'The document profile in a real editor: no lock option, no Protection tab, no AI tab, no Plugins tab; what "Remove content control" does',
+  title: 'The document profile in a real editor: no lock option, no Protection tab, no AI tab, the Plugins tab offering only the panel; what "Remove content control" does',
   parent: 'EDIT-2.8',
   async run({ context, secrets }) {
     await resetStub();
@@ -167,6 +167,15 @@ const e2a = {
         .map((n) => (n.textContent || '').replace(/\s+/g, ' ').trim())
         .filter(Boolean),
     );
+    // With the bridge registered (EDIT-5) a Plugins tab shows; it must offer the panel alone (no Plugin Manager).
+    let pluginButtons = [];
+    if (tabs.some((t) => /^plugins$/i.test(t))) {
+      await frame.locator('.ribtab > a', { hasText: 'Plugins' }).click();
+      await sleep(800);
+      pluginButtons = await frame.evaluate(() => [...new Set([...document.querySelectorAll('.panel[data-tab="plugins"] .btn-slot, .panel[data-tab="plugins"] button')].filter((b) => b.offsetParent).map((b) => (b.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean))]);
+      await frame.locator('.ribtab > a', { hasText: 'Home' }).click();
+      await sleep(500);
+    }
     // Put the caret inside the first field (paragraph 2, "This Agreement starts on |2026-11-01") and open the context menu.
     const box = await page.locator('iframe[name="frameEditor"]').boundingBox();
     await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.5);
@@ -208,11 +217,13 @@ const e2a = {
     const protection = tabs.some((t) => /protection/i.test(t));
     const ai = tabs.some((t) => /^ai$/i.test(t));
     const pluginsTab = tabs.some((t) => /^plugins$/i.test(t));
-    const ok = menuOpened && !lockOption && !protection && !ai && !pluginsTab;
+    // The document profile registers the bridge, so the Plugins tab must be there, offering the panel alone.
+    const onlyPanel = pluginsTab && pluginButtons.length === 1 && /document\s*panel/i.test(pluginButtons[0]);
+    const ok = menuOpened && !lockOption && !protection && !ai && onlyPanel;
     return {
       result: ok ? 'pass' : 'fail',
       evidence: [
-        `visible toolbar tabs: ${tabs.join(', ')} (Protection ${protection}, AI ${ai}, Plugins ${pluginsTab})`,
+        `visible toolbar tabs: ${tabs.join(', ')} (Protection ${protection}, AI ${ai}, Plugins ${pluginsTab}${pluginsTab ? `: offers ${JSON.stringify(pluginButtons)}, the panel alone ${onlyPanel}` : ''})`,
         `context menu inside a field opened ${menuOpened}: ${menu.slice(0, 18).join(' | ')}; a lock or content-control settings option ${lockOption}`,
         `"Remove content control" under modifyContentControl:false: ${removal}`,
       ],

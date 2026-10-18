@@ -3,6 +3,7 @@ import fp from 'fastify-plugin';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { config } from './config.js';
+import { PLUGIN_PREFIX } from './routes/plugin.js';
 import { findConsumersByHostname, getConsumers } from './consumers.js';
 import type { Consumer, HmacAuth, JwksAuth } from './consumers.js';
 import { redactRequestPath, safeErrorText } from './log-safety.js';
@@ -74,6 +75,11 @@ export const authPlugin = fp(async function authPlugin(app: FastifyInstance): Pr
 
     // OnlyOffice callback — skips consumer auth (route handler verifies OnlyOffice JWT)
     if (req.url === '/api/documents/callback') {
+      return;
+    }
+
+    // The bridge plugin's files — DocumentServer's editor loads them (EDIT-5.1); public, nothing secret in them
+    if (req.method === 'GET' && req.url.startsWith(PLUGIN_PREFIX)) {
       return;
     }
 

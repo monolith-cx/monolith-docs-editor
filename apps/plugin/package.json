@@ -1,0 +1,17 @@
+{
+  "name": "@monolith-docs/plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The UDOC panel bridge plugin for OnlyOffice DocumentServer (EDIT-5); static files served by apps/api",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "lint": "node ../../scripts/check-plugin-deps.mjs"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vitest": "^3.0.9"
+  }
+}

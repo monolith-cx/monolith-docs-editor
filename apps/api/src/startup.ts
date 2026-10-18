@@ -4,7 +4,8 @@
  */
 import { config, configProblems, rawEditorEnv } from './config.js';
 import { consumerProblems } from './consumers.js';
+import { pluginProblems } from './routes/plugin.js';
 
 export function startupProblems(): string[] {
-  return [...configProblems(config, rawEditorEnv), ...(config.strict ? consumerProblems() : [])];
+  return [...configProblems(config, rawEditorEnv), ...(config.strict ? consumerProblems() : []), ...pluginProblems()];
 }

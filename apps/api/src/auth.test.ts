@@ -147,3 +147,28 @@ describe('Auth-exempt paths', () => {
     expect(res.json()).toEqual({ error: 0 });
   });
 });
+
+describe('Hostname binding behind a trusted proxy (EDIT-5 review)', () => {
+  it('ignores X-Forwarded-Host, so trusting the proxy for addresses cannot move a request to another consumer', async () => {
+    const { config } = await import('./config.js');
+    const trust = config.trustProxy;
+    config.trustProxy = 1;
+    try {
+      const app = freshApp([
+        { id: 'connect', name: 'Connect', auth: { mode: 'api-key', key: 'connect-key' }, hostname: 'connect.example' },
+        { id: 'crm', name: 'CRM', auth: { mode: 'api-key', key: 'crm-key' }, hostname: 'crm.example' },
+      ]);
+      const spoofed = await app.inject({
+        method: 'POST',
+        url: '/api/documents/open',
+        headers: { host: 'connect.example', 'x-forwarded-host': 'crm.example', authorization: 'Bearer crm-key' },
+        payload,
+      });
+      expect(spoofed.statusCode).toBe(401);
+      const honest = await app.inject({ method: 'POST', url: '/api/documents/open', headers: { host: 'crm.example', authorization: 'Bearer crm-key' }, payload });
+      expect(honest.statusCode).toBe(200);
+    } finally {
+      config.trustProxy = trust;
+    }
+  });
+});
