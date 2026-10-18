@@ -24,7 +24,7 @@
    - `getText` returns field spans, row ids, and kinds (U4);
    - drop produces a final save or a closed-without-changes notification (U8).
 
-   The Word desktop round trip (U13) is blocked: no machine with Word. It is the one open item.
+   The Word desktop round trip (U13) could not run (no machine with Word) and was **waived by Josh on 2026-10-18**.
 
 ## Licence posture
 
@@ -70,4 +70,4 @@ Each finding names the step that absorbs it. Item ids refer to the battery.
 
 - `docker-compose.yml` runs 10.0.0.1, so any future stand-up gets the release proven here.
 - EDIT-2's design absorbs F1–F5. Its plan text is updated with these corrections before EDIT-2 starts.
-- Josh confirmed F9 (D11 stands) on 2026-10-17. U13 stays blocked: neither the battery host nor Josh's Windows machine has Word desktop (his has OnlyOffice desktop only). Closing it needs Word from somewhere (Word for the web could serve as a stand-in if Josh accepts it) or a written waiver.
+- Josh confirmed F9 (D11 stands) on 2026-10-17. U13: Josh waived U13 in writing on 2026-10-18 ("Just waive it"): there is no Word desktop on the battery host or on Josh's Windows machine (OnlyOffice desktop only). D16's validation of every returned file is the safeguard for files edited elsewhere; `--only U13` re-runs the check when Word is available.

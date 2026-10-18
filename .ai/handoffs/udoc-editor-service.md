@@ -1,6 +1,6 @@
 # Handoff — Editor Service for Unified Document Authoring (EDIT)
 
-- **Updated:** 2026-10-17 23:45 PDT
+- **Updated:** 2026-10-18
 - **Lane / status:** active / `active` (owner-approved 2026-10-16)
 - **Parent:** Platform ecosystem initiative `unified-document-authoring` (UDOC), phase UDOC-1; EDIT-*n* implements UDOC-1.*n*
 - **Plan:** `.ai/initiatives/active/udoc-editor-service/plan.md` · **Guidance:** `guidance.md` (local decisions E1–E8)
@@ -8,7 +8,7 @@
 ## Where things stand
 - **EDIT-0 (charter):** done; committed `0158323`.
 - **EDIT-4 (log redaction):** code-complete and reviewed; committed `9f54904`. Not deployed: no hosted editor exists since the 2026-06-12 decommission (`deploy-edit-4.md`; committed `28a27d9`).
-- **EDIT-1 (OnlyOffice upgrade and battery):** built and run in full; checkpoint review attempt 1 FAIL, attempt 2 PASS-WITH-NITS with every finding applied (`reviews/review-edit-1-attempt-{1,2}.md`); uncommitted, awaiting Josh's commit approval.
+- **EDIT-1 (OnlyOffice upgrade and battery):** built and run in full; checkpoint review attempt 1 FAIL, attempt 2 PASS-WITH-NITS with every finding applied (`reviews/review-edit-1-attempt-{1,2}.md`); committed `dfbb48e`. Done 2026-10-18 (U13 waived by Josh).
   - Battery: `scripts/editor-battery/` (README there).
   - Results: `docs/spikes/results/10.0.0.1/2026-10-18.{md,json}`. 36 items: 24 pass, 4 pass with a finding (the loose lock), 7 recorded, 1 blocked, 0 fail.
   - ADR: `docs/adr/2026-10-17-onlyoffice-release-and-licence.md` (F1–F15).
@@ -31,7 +31,7 @@
 
 ## Blockers and open decisions (Josh)
 - **D11 / F9:** Josh confirmed on 2026-10-17 that the loose lock stands.
-- **U13:** no Word desktop is available (Josh has OnlyOffice desktop only). It stays blocked until Word is found (Word for the web as a stand-in, if Josh accepts it) or Josh waives it in writing.
+- **U13:** Josh waived U13 in writing on 2026-10-18 ("Just waive it"): there is no Word desktop on the battery host or on Josh's Windows machine (OnlyOffice desktop only).
 - **Cloudflare (EDIT-4.2)** is still blocked (no API access).
 - EDIT-6 is a from-scratch stand-up (no host exists).
 
@@ -40,18 +40,13 @@
 - The `ERRORS.md` residual for DocumentServer's own logs gained a 2026-10-17 update with 10.0's behaviour (F6).
 
 ## Next step
-EDIT-2 (profiles, stateless sessions, signed notifications, drop, the editor page), with UDOC-2.1's contract drafted alongside. U13 stays open on Word. Then EDIT-2 (profiles, sessions, notifications) with UDOC-2.1's contract drafted alongside.
+EDIT-2 (profiles, stateless sessions, signed notifications, drop, the editor page), with UDOC-2.1's contract drafted alongside. Then EDIT-2 (profiles, sessions, notifications) with UDOC-2.1's contract drafted alongside.
 
 ## Follow-ups noted
 - `CLAUDE.md`'s reviewer lines carry another session's uncommitted edit that still names MiniMax (retired). Reconcile them with `.ai/iddp/config.json` when that edit is resolved.
 
 ## Commit state
-- Committed on `main`, not pushed: `0158323`, `9f54904`, `28a27d9`.
-- EDIT-1 is uncommitted:
-  - battery, results, ADR, spike document;
-  - compose pin, stack lines, workspace and lockfile;
-  - plan, guidance, handoff, registry, ROADMAP;
-  - `ERRORS.md` note.
+- Committed on `main`, not pushed: `0158323` (charter), `9f54904` (EDIT-4), `28a27d9` (decommission record), `dfbb48e` (EDIT-1). This line was refreshed after `dfbb48e` and lands with the next checkpoint.
 - Older sessions' uncommitted work stays out:
   - `.ai/handoffs/standalone-app.md`, `.ai/iddp/config.json`, the standalone-app plan;
   - `deploy-pipeline-parity/*`, `.gitignore`, `infrastructure/gce/teardown.sh`;

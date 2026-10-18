@@ -3,7 +3,7 @@
 **Initiative ID:** udoc-editor-service
 **Abbreviation:** EDIT
 **Owner:** josh
-**Status:** Active — drafted 2026-10-16; plan review attempt 1 **FAIL** (3 High, 12 Medium, 8 Nit), attempt 2 **PASS-WITH-NITS** (9 Medium, 7 Nit; `reviews/review-plan-attempt-{1,2}.md`), every finding applied the same day; **owner-approved 2026-10-16** with parent amendments A1–A5; moved to `active/`. EDIT-4 code-complete and checkpoint-reviewed 2026-10-16 (`reviews/review-edit-4-attempt-{1,2,3}.md`: FAIL, PASS-WITH-NITS, PASS-WITH-NITS; every finding applied), not deployed. EDIT-1 battery complete except U13 (Word, blocked); checkpoint review attempt 2 PASS-WITH-NITS (`reviews/review-edit-1-attempt-{1,2}.md`), nits applied.
+**Status:** Active — drafted 2026-10-16; plan review attempt 1 **FAIL** (3 High, 12 Medium, 8 Nit), attempt 2 **PASS-WITH-NITS** (9 Medium, 7 Nit; `reviews/review-plan-attempt-{1,2}.md`), every finding applied the same day; **owner-approved 2026-10-16** with parent amendments A1–A5; moved to `active/`. EDIT-4 code-complete and checkpoint-reviewed 2026-10-16 (`reviews/review-edit-4-attempt-{1,2,3}.md`: FAIL, PASS-WITH-NITS, PASS-WITH-NITS; every finding applied), not deployed. EDIT-1 done 2026-10-18 (committed `dfbb48e`; review attempt 2 PASS-WITH-NITS, applied; U13 waived by Josh). Next: EDIT-2.
 **Last updated:** 2026-10-16
 **Guidance:** [guidance.md](./guidance.md)
 **Parent ecosystem initiative:** `unified-document-authoring` (UDOC), phase UDOC-1 — `~/dev/monolith-platform/.ai/ecosystem/initiatives/active/unified-document-authoring/plan.md`
@@ -19,7 +19,7 @@ Estimates are engineering weeks for one senior developer working with Claude.
 |---|---|---|---|---|
 | EDIT-0 | — | Charter, re-scope of `standalone-app`, plan review | Done 2026-10-16 | — |
 | EDIT-4 | UDOC-1.4 | Log redaction | Code-complete, checkpoint review PASS-WITH-NITS 2026-10-16 (attempt 3, nits applied). No environment exists to deploy to (decommissioned 2026-06-12, found 2026-10-17): ships with the EDIT-6 stand-up. Open: Cloudflare check (blocked); old logs survive only in the 2026-06-12 snapshots (owner decision) | EDIT-0 |
-| EDIT-1 | UDOC-1.1 | Upgrade and the extended battery re-run | In progress — battery built and run in full on 10.0.0.1 (2026-10-17): 24 pass, 4 pass-with-finding (the loose-lock items), 7 recorded, 0 fail; U13 (Word desktop) blocked; checkpoint review attempt 2 PASS-WITH-NITS, nits applied; awaiting commit approval | EDIT-0 |
+| EDIT-1 | UDOC-1.1 | Upgrade and the extended battery re-run | **Done 2026-10-18**: battery run in full on 10.0.0.1 (24 pass, 4 pass-with-finding for the loose lock, 7 recorded, 0 fail); U13 (Word desktop) waived by Josh; review attempt 2 PASS-WITH-NITS, applied; committed `dfbb48e` | EDIT-0 |
 | EDIT-2 | UDOC-1.2 | Profiles, stateless sessions, signed notifications, drop, the editor page | Pending | EDIT-1 (pinned release, measured retry behaviour), EDIT-4; UDOC-2.1 drafted alongside; `standalone-app` Phase 0 closed or re-baselined before EDIT-2 deploys |
 | EDIT-3 | UDOC-1.3 | PDF conversion | Pending | EDIT-1, EDIT-2 (consumer registry, URL validator) |
 | EDIT-5 | UDOC-1.5 | The panel bridge plugin | Pending | EDIT-1 (unproven items answered), EDIT-2 (profiles, plugin data) |
@@ -99,7 +99,8 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 - DocumentServer's own log configuration on the pinned release (internal nginx access and error logs, the services' log level and pattern; 8.3 logs `DOCID` at WARN), recorded in the ADR.
 - DocumentServer's own request filtering (private-address refusal for `document.url` and conversion sources), its `maxDownloadBytes` limit, and its cache retention for edited and converted files.
 - A version DOCX opened, edited, and saved in **Word desktop** and reopened in OnlyOffice. Needs a machine with Word; record who ran it and where. If it cannot be run, EDIT-1 stays open unless Josh waives this item in writing (recorded here).
-- 2026-10-17: Josh has no Word desktop either (OnlyOffice desktop only on Windows). U13 stays **Blocked**. The options are Word from another machine, Word for the web as a stand-in if Josh accepts it, or a written waiver.
+- 2026-10-17: Josh has no Word desktop either (OnlyOffice desktop only on Windows).
+- **Waived 2026-10-18.** Josh waived U13 in writing on 2026-10-18 ("Just waive it"): there is no Word desktop on the battery host or on Josh's Windows machine (OnlyOffice desktop only). Consequence: a DOCX version edited in Word desktop and returned is unproven; D16's validation of every returned file (field rows, locks, value runs, content rules) is the safeguard, and a Word round trip can be re-run any time with `--only U13` once Word is available. The battery keeps reporting U13 as `blocked`.
 - Status (2026-10-17): every item passed or was recorded except the following. **Statuses 3 and 7 (save errors) are not measured**: they could not be provoked without breaking DocumentServer (ADR F14). Callback behaviour was measured per status: only status 2 is retried, while statuses 1, 4, and 6 get one attempt (ADR F1). The Word round trip is **Blocked**: `docs/spikes/results/10.0.0.1/word-roundtrip-input.docx` is written by the battery; saving it from Word as `word-roundtrip-output.docx` beside it and running `--only U13` completes the check. No fallback from the parent's Risks was needed (U1–U4 and U8 pass).
 
 ### EDIT-1.6 ADR, fallbacks, registries
