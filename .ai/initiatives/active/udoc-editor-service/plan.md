@@ -18,7 +18,7 @@ Estimates are engineering weeks for one senior developer working with Claude.
 | Phase | Parent | Title | Status | Depends on |
 |---|---|---|---|---|
 | EDIT-0 | — | Charter, re-scope of `standalone-app`, plan review | Done 2026-10-16 | — |
-| EDIT-4 | UDOC-1.4 | Log redaction (scheduled first: it closes live leaks) | Code-complete, checkpoint review PASS-WITH-NITS 2026-10-16 (attempt 3, nits applied); not deployed; open: Cloudflare check (blocked), deploy and log purge (owner) | EDIT-0 |
+| EDIT-4 | UDOC-1.4 | Log redaction | Code-complete, checkpoint review PASS-WITH-NITS 2026-10-16 (attempt 3, nits applied). No environment exists to deploy to (decommissioned 2026-06-12, found 2026-10-17): ships with the EDIT-6 stand-up. Open: Cloudflare check (blocked); old logs survive only in the 2026-06-12 snapshots (owner decision) | EDIT-0 |
 | EDIT-1 | UDOC-1.1 | Upgrade and the extended battery re-run | Pending | EDIT-0 |
 | EDIT-2 | UDOC-1.2 | Profiles, stateless sessions, signed notifications, drop, the editor page | Pending | EDIT-1 (pinned release, measured retry behaviour), EDIT-4; UDOC-2.1 drafted alongside; `standalone-app` Phase 0 closed or re-baselined before EDIT-2 deploys |
 | EDIT-3 | UDOC-1.3 | PDF conversion | Pending | EDIT-1, EDIT-2 (consumer registry, URL validator) |
@@ -191,7 +191,7 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 
 ## EDIT-4 Log redaction (UDOC-1.4)
 
-**Goal:** no log line carries a URL that grants access. Scheduled first because the leaks are live in production.
+**Goal:** no log line carries a URL that grants access. Scheduled first because the leaks were believed live in production; on 2026-10-17 the survey for its deploy found the hosted environment had been decommissioned on 2026-06-12 (see `deploy-edit-4.md`).
 
 ### EDIT-4.1 Remove the fields and scrub messages
 - Drop OnlyOffice's callback `url` (`documents.ts:213`), the signed `fileUrl` (`:148`), and `callbackUrl` (`:262`, `:266`) from log fields; log the host only where it helps.
@@ -205,7 +205,7 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 
 ### EDIT-4.3 Purge (owner-approved action)
 - With Josh's approval, after the fix is deployed: rotate and purge, on the production and dev VMs, the API container's logs, the host nginx logs (`/var/log/nginx/`, including the error log), and DocumentServer's `onlyoffice-log` volume (`/var/log/onlyoffice`: its internal nginx error log and its WARN lines carrying `DOCID`), plus any sink they feed.
-- Status: Pending (owner-approved action).
+- Status (2026-10-17): **nothing to purge on a live host.** The runbook (`deploy-edit-4.md`) stopped at its survey: no VM, no IP, no live logs in project `monolith-docs`; the environment was decommissioned on 2026-06-12. The old logs survive only in the snapshots `monolith-docs-final-20260612` and `monolith-docs-dev-final-20260612` (also the only backup); whether to delete or scrub them is Josh's decision. The fix deploys with the first stand-up (EDIT-6).
 
 ### EDIT-4.4 Acceptance (parent UDOC-1.4)
 - Status (2026-10-16): items 1 and 2 met in code (54 API tests, typecheck, lint; `ERRORS.md` entries `[x]` with `Resolved:` notes, marked not yet deployed); item 3 is a forward obligation on EDIT-2 and EDIT-3. EDIT-4 as a whole stays open for the Cloudflare check (blocked, EDIT-4.2) and the owner-approved deploy and purge (EDIT-4.3).
@@ -263,6 +263,7 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 **Goal:** the editor runs where CRM's dev environment can reach it and be reached by it, sized and documented.
 
 ### EDIT-6.1 Hosting choice
+- **Found 2026-10-17: no editor host exists in any environment** (decommissioned 2026-06-12; public hosts answer 530 or time out). EDIT-6 is therefore a from-scratch stand-up, not a check, and it is the first deploy of everything EDIT ships (EDIT-4 onward); the `deploy-edit-4.md` runbook's steps 1–3 and DOC-DPP's revised Phase 4 apply.
 - Read DOC-DPP's status first. Choose per environment (dev at minimum) between the proven GCE + Cloudflare Tunnel path and DOC-DPP's target, and record it in an ADR. One API instance per environment (the conversion limiter is in-process).
 
 ### EDIT-6.2 Capacity

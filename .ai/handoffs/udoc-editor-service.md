@@ -1,6 +1,6 @@
 # Handoff — Editor Service for Unified Document Authoring (EDIT)
 
-- **Updated:** 2026-10-16 12:40 PDT
+- **Updated:** 2026-10-17 09:15 PDT
 - **Lane / status:** active / `active` (owner-approved 2026-10-16)
 - **Parent:** Platform ecosystem initiative `unified-document-authoring` (UDOC), phase UDOC-1; EDIT-*n* implements UDOC-1.*n*
 - **Plan:** `.ai/initiatives/active/udoc-editor-service/plan.md` · **Guidance:** `guidance.md` (local decisions E1–E8)
@@ -27,6 +27,15 @@
     - `server.ts`.
   - `infrastructure/nginx/monolith-docs.conf`: an allowlist `map`, a masked `log_format` with no query string and no Referer, and an explicit `error_log`.
 
+## 2026-10-17: the EDIT-4 deploy stopped at its survey
+- Josh approved the full runbook (`.ai/initiatives/active/udoc-editor-service/deploy-edit-4.md`). Its read-only survey found **no hosted editor anywhere**:
+  - project `monolith-docs` has no VM and no reserved IP, and no other accessible project has one;
+  - `connect.` and `crm.monolithdocs.com` answer 530 (Cloudflare 1033), and `app.` times out.
+- Cause: the deliberate cost decommission of 2026-06-12, recorded in `deploy-pipeline-parity/plan.md`, Phase 4 note.
+- Snapshots `monolith-docs-final-20260612` and `monolith-docs-dev-final-20260612` remain. They hold the only copies of the old logs and are the only backup.
+- Nothing was pushed, deployed, or purged.
+- EDIT-4 now ships with the EDIT-6 stand-up, which is a full stand-up, not a check.
+
 ## Verification that ran
 - `pnpm --filter @monolith-docs/api run test`: 54 pass. `log-safety.test.ts` scans raw log output for:
   - an open failure, a successful save, a callback failure, and a callback error;
@@ -44,13 +53,14 @@
 - `pnpm install --frozen-lockfile` was run here, because `node_modules` was missing. No tracked file changed.
 
 ## Blockers and open items
-- **EDIT-4 is not deployed.** The deploy and the EDIT-4.3 log purge are owner-approved actions. The purge covers the API container logs, the host nginx logs, and DocumentServer's `onlyoffice-log` volume.
+- **No hosted editor exists** (decommissioned 2026-06-12). EDIT-4 deploys with the EDIT-6 stand-up. Whether to delete or scrub the two 2026-06-12 snapshots (old logs; only backup) is Josh's decision.
 - **Cloudflare (EDIT-4.2) is blocked.** There is no Cloudflare API access in this session, so request logging (Logpush) on the `monolithdocs.com` zone is unchecked.
 - EDIT-6 needs an editor host for `crm-dev` and a stub receiver (A4).
 - The Word desktop item (EDIT-1.5) needs a machine with Word, or Josh's written waiver.
 - `standalone-app` Phase 0 must close, or be re-baselined, before EDIT-2 deploys.
 
 ## Errors
+- **New, 2026-10-17:** the editor service is down everywhere while `fastmail-connect` and the Connect extension still call it (`ERRORS.md`).
 - **New unresolved errors found in EDIT-4**, logged in `ERRORS.md` (2026-10-16 12:11):
   - nginx's error log keeps raw request lines;
   - DocumentServer's own logs (the `onlyoffice-log` volume) carry `DOCID` and request lines.
@@ -77,7 +87,7 @@ Check `~/bin/heavy` first. The 8.3, 9.4.0.1, and 10.0.0.1 images are already pul
 - the Stack line in `CLAUDE.md`
 
 ## Commit state
-- The charter is `0158323` on `main`, not pushed. EDIT-4 is uncommitted and awaiting Josh's approval.
+- The charter is `0158323` and EDIT-4 is `9f54904` on `main`, neither pushed. This line was refreshed after that commit and lands with the next checkpoint.
 - The working tree also holds older sessions' uncommitted changes. Leave them out:
   - `.ai/handoffs/standalone-app.md`, `.ai/iddp/config.json`, `.ai/initiatives/active/standalone-app/plan.md`;
   - `deploy-pipeline-parity/*`;
