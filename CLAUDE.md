@@ -48,6 +48,8 @@ apps/
       safe-url.ts  the only gate for document, callback, and conversion URLs (resolve, refuse private addresses, pin)
       session-token.ts  sealed per-open editor tokens (stateless sessions, EDIT-2)
       notify.ts    signed consumer notifications; reference/verify-notification.ts is the consumer-side verifier
+      convert.ts   PDF conversion through the source route and a pinned upload (EDIT-3)
+      capped-read.ts, source-outcomes.ts  whole reads under a cap; a conversion's source outcome and abort
   web/            standalone frontend workspace (scaffolded in Phase 0)
 
 packages/
@@ -109,6 +111,7 @@ Core patterns:
 - Preserve the stateless session model (EDIT-2, UDOC D13): no session map and no database; everything an editor page needs travels in the sealed token, and callbacks route by the document key's consumer. Preserve notification signing and `deliveryId` stability, callback verification from the verified JWT payload, and hostname-aware access checks.
 - Every URL the service or DocumentServer fetches on a consumer's behalf passes `safe-url.ts`; DocumentServer bypasses its own address filter for signed configs (ADR F3).
 - `docs/guides/consumer-integration.md` is the consumer-facing description of the API; change it with the API.
+- DocumentServer only ever receives a complete source file or an error before any byte: the source route reads the whole file first (ADR F17). A partial or slow download wedges DocumentServer's one converter, which also serves every editor open; never stream a source to it.
 - Signed URL fetch/upload behavior must remain observable and bounded; do not hide timeout, SSRF, or invalid input risks.
 - Treat infrastructure secrets and consumer credentials as configuration, never hardcoded logic.
 

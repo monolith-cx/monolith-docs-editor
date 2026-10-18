@@ -39,8 +39,8 @@ beforeAll(async () => {
       notificationSecretRef: 'EDITOR_NOTIFY_SECRET_TEST',
       panelOrigins: ['https://crm.example.com'],
       fileHosts: ['127.0.0.1', 'localhost'],
-      convertSourceHosts: ['127.0.0.1'],
-      convertUploadHosts: ['127.0.0.1'],
+      convertSourceHosts: ['127.0.0.1', '8.8.8.8'],
+      convertUploadHosts: ['127.0.0.1', '8.8.8.8'],
       returnOrigin: 'https://crm.example.com',
     },
   ]);
@@ -73,6 +73,15 @@ describe('strict EDITOR_ENV', () => {
       const res = await mod.buildApp().inject({ method: 'GET', url: `/api/documents/source/${token}` });
       expect(res.statusCode).toBe(404);
     }
+  });
+
+  it('refuses http and private conversion URLs, source and upload, before anything is fetched', async () => {
+    const convert = (sourceUrl: string, uploadUrl: string) =>
+      mod.buildApp().inject({ method: 'POST', url: '/api/documents/convert', headers: { authorization: 'Bearer crm-key', host: 'editor.example.com' }, payload: { sourceUrl, uploadUrl } });
+    expect((await convert('http://127.0.0.1/a.docx', 'https://8.8.8.8/u')).json()).toEqual({ error: 'source_url_refused' });
+    expect((await convert('https://127.0.0.1/a.docx', 'https://8.8.8.8/u')).json()).toEqual({ error: 'source_url_refused' });
+    expect((await convert('https://8.8.8.8/a.docx', 'http://127.0.0.1/u')).json()).toEqual({ error: 'upload_url_refused' });
+    expect((await convert('https://8.8.8.8/a.docx', 'https://127.0.0.1/u')).json()).toEqual({ error: 'upload_url_refused' });
   });
 
   it('refuses a callback without a DocumentServer token', async () => {

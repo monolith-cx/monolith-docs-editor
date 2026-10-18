@@ -43,6 +43,13 @@ export interface Config {
   /** The source route's limits when it fetches a consumer's file for DocumentServer (EDIT-2.2). */
   sourceTimeoutMs: number;
   maxSourceBytes: number;
+  /** Source reads at once; each holds its file in memory until it is complete (ADR F17). */
+  sourceConcurrency: number;
+  /** Conversion (EDIT-3): the whole request's deadline, concurrent conversions per consumer, the PDF's cap. */
+  convertTimeoutMs: number;
+  convertConcurrency: number;
+  convertConcurrencyTotal: number;
+  maxConvertOutputBytes: number;
 
   consumersJson: string | undefined;
   consumerApiKey: string | undefined;
@@ -114,8 +121,15 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     sealKeys: parseSealKeys(env['EDITOR_SEAL_KEYS']),
     maxSessionMs: Math.min(Number(env['EDITOR_MAX_SESSION_MS'] ?? TWELVE_HOURS_MS), TWELVE_HOURS_MS),
     notifyTimeoutMs: Number(env['EDITOR_NOTIFY_TIMEOUT_MS'] ?? 10_000),
-    sourceTimeoutMs: Number(env['EDITOR_SOURCE_TIMEOUT_MS'] ?? 120_000),
+    // Short on purpose: while a source is read, DocumentServer's one converter waits for it (ADR F17).
+    sourceTimeoutMs: Number(env['EDITOR_SOURCE_TIMEOUT_MS'] ?? 30_000),
     maxSourceBytes: Number(env['EDITOR_MAX_SOURCE_BYTES'] ?? DEFAULT_MAX_SOURCE_BYTES),
+    sourceConcurrency: Number(env['EDITOR_SOURCE_CONCURRENCY'] ?? 4),
+    // Under the 100 s a Cloudflare-proxied request is held open, so the consumer always gets the answer.
+    convertTimeoutMs: Number(env['EDITOR_CONVERT_TIMEOUT_MS'] ?? 90_000),
+    convertConcurrency: Number(env['EDITOR_CONVERT_CONCURRENCY'] ?? 2),
+    convertConcurrencyTotal: Number(env['EDITOR_CONVERT_CONCURRENCY_TOTAL'] ?? 4),
+    maxConvertOutputBytes: Number(env['EDITOR_MAX_CONVERT_OUTPUT_BYTES'] ?? DEFAULT_MAX_SOURCE_BYTES),
 
     consumersJson: env['CONSUMERS'],
     consumerApiKey: env['CONSUMER_API_KEY'],
@@ -143,6 +157,11 @@ export function configProblems(cfg: Config, rawEditorEnv: string | undefined): s
     ['EDITOR_NOTIFY_TIMEOUT_MS', cfg.notifyTimeoutMs, 100],
     ['EDITOR_SOURCE_TIMEOUT_MS', cfg.sourceTimeoutMs, 1_000],
     ['EDITOR_MAX_SOURCE_BYTES', cfg.maxSourceBytes, 1],
+    ['EDITOR_SOURCE_CONCURRENCY', cfg.sourceConcurrency, 1],
+    ['EDITOR_CONVERT_TIMEOUT_MS', cfg.convertTimeoutMs, 1_000],
+    ['EDITOR_CONVERT_CONCURRENCY', cfg.convertConcurrency, 1],
+    ['EDITOR_CONVERT_CONCURRENCY_TOTAL', cfg.convertConcurrencyTotal, 1],
+    ['EDITOR_MAX_CONVERT_OUTPUT_BYTES', cfg.maxConvertOutputBytes, 1],
     ['PORT', cfg.port, 1],
     ['RATE_LIMIT_MAX', cfg.rateLimitMax, 1],
     ['RATE_LIMIT_WINDOW_MS', cfg.rateLimitWindowMs, 1],
@@ -151,6 +170,14 @@ export function configProblems(cfg: Config, rawEditorEnv: string | undefined): s
   for (const [name, value, min] of positive) {
     if (!Number.isFinite(value) || !Number.isInteger(value) || value < min) problems.push(`${name} must be a whole number of at least ${min}`);
   }
+  // DocumentServer itself refuses downloads over 100 MB (ADR F8); a larger cap here would only move the refusal.
+  if (cfg.maxSourceBytes > DEFAULT_MAX_SOURCE_BYTES) problems.push(`EDITOR_MAX_SOURCE_BYTES must be at most ${DEFAULT_MAX_SOURCE_BYTES} (DocumentServer's own download cap)`);
+  // Files are held in memory whole (ADR F17): the caps bound the ceiling,
+  // (EDITOR_SOURCE_CONCURRENCY + EDITOR_CONVERT_CONCURRENCY_TOTAL) x 100 MB at most.
+  if (cfg.maxConvertOutputBytes > DEFAULT_MAX_SOURCE_BYTES) problems.push(`EDITOR_MAX_CONVERT_OUTPUT_BYTES must be at most ${DEFAULT_MAX_SOURCE_BYTES}`);
+  // A Cloudflare-proxied request is held open 100 s; past that the consumer never gets the answer.
+  if (cfg.convertTimeoutMs > 95_000) problems.push('EDITOR_CONVERT_TIMEOUT_MS must be at most 95000 (a proxied request is held open 100 s)');
+  if (cfg.convertConcurrency > cfg.convertConcurrencyTotal) problems.push('EDITOR_CONVERT_CONCURRENCY must not exceed EDITOR_CONVERT_CONCURRENCY_TOTAL');
   if (cfg.notifyTimeoutMs >= 600_000) problems.push("EDITOR_NOTIFY_TIMEOUT_MS must stay below DocumentServer's 10-minute callback timeout");
   if (!cfg.strict) return problems;
 

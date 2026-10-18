@@ -91,16 +91,16 @@ DocumentServer never sees this URL. Its configuration names the service's own so
 (`/api/documents/source/<sealed source token>` on the internal URL); when DocumentServer asks for
 the document, the service checks the URL again against your current registration, resolves it,
 and fetches it on exactly the addresses it checked, without following redirects, within
-`EDITOR_SOURCE_TIMEOUT_MS` (120 s) and `EDITOR_MAX_SOURCE_BYTES` (100 MB, DocumentServer's own
-default). A name that resolves publicly at `open` and privately later cannot steer that fetch
+`EDITOR_SOURCE_TIMEOUT_MS` (30 s) and `EDITOR_MAX_SOURCE_BYTES` (100 MB, DocumentServer's own
+default). The service reads the whole file before handing it on (ADR F17: a download that ends part
+way, or a slow one, blocks DocumentServer's one converter for every document), so serve it
+promptly: a source that is slower than the deadline fails the open. A name that resolves publicly at `open` and privately later cannot steer that fetch
 inward (DocumentServer's own address filter is bypassed for signed configurations, ADR F3, so it
 could not be relied on). Answer the fetch with `200` and the file; a redirect or any other status
 fails the open. Each source token lives 5 minutes (a new one is minted every time the editor page
 loads) and admits at most 10 fetches; requests whose token does not open are limited per address
-like every other route. The service asks for the file uncompressed (`Accept-Encoding: identity`).
-Send a `Content-Length` when you can: for an uncompressed answer it is passed on, so a transfer cut
-short is an error at DocumentServer, never a short file; a compressed answer is decompressed and
-passed on without a length (chunked, where a cut is the same error).
+like every other route. The service asks for the file uncompressed (`Accept-Encoding: identity`)
+and refuses a body that ends short of its declared `Content-Length`.
 
 Use a short-lived signed URL: the session never outlives the URL's stated expiry (GCS and S3 v4,
 or an `Expires` epoch parameter).
@@ -244,10 +244,48 @@ follows: status 2 if there were changes, status 4 if not. Answers: `{ "result": 
 `502` with `docserver_internal` or `invalid_token` (a fault in DocumentServer or in the service's
 configuration), or `docserver_unreachable`. A drop does not revoke issued editor URLs (section 3).
 
-## 6. Conversion
+## 6. Conversion (EDIT-3)
 
-`POST /api/documents/convert` arrives with EDIT-3 (sources and upload targets checked against
-`convertSourceHosts` and `convertUploadHosts`). This section is completed then.
+`POST /api/documents/convert`, authenticated as a profile consumer (a legacy-only consumer gets
+`403 profile_not_allowed`), turns a document in your storage into a PDF in your storage. The
+service keeps neither file and writes nothing to disk.
+
+```json
+{ "sourceUrl": "https://files.example.com/signed-read/…", "uploadUrl": "https://files.example.com/signed-write/…", "fileType": "docx" }
+```
+
+- `sourceUrl` is checked like an editing `fileUrl` (section 2) against `convertSourceHosts`;
+  `uploadUrl` against `convertUploadHosts`. Both must be https and resolve to public addresses
+  (`EDITOR_ENV=local`, the scratch battery, also admits http and private addresses); neither is
+  ever a cloud metadata address, in any environment.
+- `fileType` is `docx`, `doc`, `odt`, or `rtf`; without it the source URL's extension decides,
+  else `docx`.
+- DocumentServer reads the source through the service's source route (section 2), so the service
+  fetches it whole on the checked addresses with no redirects and under `EDITOR_MAX_SOURCE_BYTES`,
+  and only while this conversion runs (its source token is refused once the conversion has ended).
+- The service reads the PDF whole and checks it against its declared length, then uploads it with
+  `PUT`, `Content-Type: application/pdf`, and its `Content-Length` to the checked upload address,
+  without following a redirect. Your storage never receives part of a file. Use a signed upload URL
+  that accepts that.
+- Answer: `{ "size": <bytes>, "sha256": "<hex>" }` once your upload host answered `2xx`. Check the
+  stored object against both.
+
+| Status | `error` | Meaning |
+|---|---|---|
+| 400 | `source_url_refused` | The source URL failed the checks (also when refused at fetch time). |
+| 400 | `upload_url_refused` | The upload URL failed the checks. |
+| 413 | `input_too_large` | The source is over the input cap. |
+| 413 | `output_too_large` | The PDF is over `EDITOR_MAX_CONVERT_OUTPUT_BYTES` (100 MB). |
+| 502 | `source_unavailable` | The source host did not answer `200` (a redirect counts) or could not be reached. |
+| 504 | `conversion_timeout` | The whole request ran past `EDITOR_CONVERT_TIMEOUT_MS` (90 s by default, at most 95 s: under the 100 s a proxied request is held open). While DocumentServer answers "not finished" the service asks again each second until then. |
+| 502 | `conversion_failed` | DocumentServer could not convert the document, or returned an empty or incomplete PDF. |
+| 502 | `upload_failed` | The upload host refused, redirected, or could not be reached. |
+| 429 | `busy` | You already have `EDITOR_CONVERT_CONCURRENCY` (2) conversions running, the service has `EDITOR_CONVERT_CONCURRENCY_TOTAL` (4) running for everyone, or its source reads are all in use; retry later. |
+
+A converted PDF stays in DocumentServer's cache for up to 24 hours (ADR F8) on our own
+infrastructure; nothing else keeps it. Convert a finalized document only: tracked changes render
+as both the deleted and inserted text and comments are dropped (ADR F12), which is why finalize
+requires none (UDOC D16).
 
 ## 7. Plugin data and the panel
 
@@ -277,6 +315,12 @@ falls back to the URL's. Refused: `callbackUrl`, `saveTo`, a GCS `bucket/object`
 shape is removed once no registered consumer uses it.
 
 ## 9. Changelog
+
+**EDIT-3 (2026-10-18).** Added: `POST /api/documents/convert` (section 6). Changed: metadata
+addresses are refused everywhere, `EDITOR_ENV=local` included; the source route reads the whole
+file before DocumentServer gets any of it (ADR F17), within `EDITOR_SOURCE_TIMEOUT_MS`, now 30 s,
+so a source slower than that fails the open; too many reads at once answer DocumentServer `503`
+(it was observed to retry a failed source download three times, a second apart).
 
 **EDIT-2 (2026-10-18).** Added: profiles, sealed editor URLs, the source route (DocumentServer
 fetches documents through the service), signed notifications, drop, the forgotten-files

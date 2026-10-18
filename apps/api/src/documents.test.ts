@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
@@ -10,6 +11,7 @@ import type { Consumer } from './consumers.js';
 import { BRIDGE_PLUGIN_GUID, PLUGIN_MANAGER_GUID } from './editor-config.js';
 import { verifyNotification } from './reference/verify-notification.js';
 import { MAX_TOKEN_CHARS, openSource, sealSession, sealSource } from './session-token.js';
+import { endSource, expectSource } from './source-outcomes.js';
 
 // --- A consumer's notification endpoint ---
 let notifyPort = 0;
@@ -31,7 +33,19 @@ let fileFetches = 0;
 let endlessClosedAt = 0;
 const FILE_BYTES = Buffer.from('PK-not-really-a-docx-but-bytes');
 const LARGE_BYTES = Buffer.alloc(200_000, 7);
+let uploads: Array<{ path: string; bytes: Buffer; type: string | undefined; length: string | undefined }> = [];
 const fileServer = createServer((req, res) => {
+  if (req.method === 'PUT') {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      uploads.push({ path: req.url ?? '', bytes: Buffer.concat(chunks), type: req.headers['content-type'], length: req.headers['content-length'] });
+      if (req.url === '/upload/redirect') res.writeHead(307, { location: 'http://169.254.169.254/x' });
+      else res.writeHead(req.url === '/upload/fail' ? 500 : 200);
+      res.end();
+    });
+    return;
+  }
   fileFetches += 1;
   if (req.url === '/contract.docx') {
     res.writeHead(200, { 'content-type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
@@ -78,10 +92,60 @@ const fileServer = createServer((req, res) => {
 // --- DocumentServer's command service (ONLYOFFICE_URL in vitest.config.ts) ---
 let commands: Array<Record<string, unknown>> = [];
 let commandAnswer: Record<string, unknown> = { error: 0 };
+// ConvertService (EDIT-3): the test decides the answer; by default it fetches its source through the
+// app's source route like DocumentServer does, and serves the "converted" bytes from /cache/files/.
+let converterApp: ReturnType<typeof buildApp> | null = null;
+let converterBodies: Array<Record<string, unknown>> = [];
+let converterAnswer: ((body: Record<string, unknown>) => Promise<Record<string, unknown>>) | null = null;
+const PDF_BYTES = Buffer.from('%PDF-1.7 converted bytes for the test');
+let resultBytes = PDF_BYTES;
+let resultChunked = false;
+let resultMode: 'ok' | 'short' | 'gzip' | 'empty' = 'ok';
+async function defaultConverter(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const source = await converterApp?.inject({ method: 'GET', url: new URL(String(body['url'])).pathname });
+  if (!source || source.statusCode !== 200) return { error: -4 };
+  return { endConvert: true, percent: 100, fileUrl: 'http://127.0.0.1:18999/cache/files/conv/output.pdf?md5=x&expires=9' };
+}
 const commandServer = createServer((req, res) => {
+  if (req.method === 'GET' && req.url?.startsWith('/cache/files/')) {
+    if (resultMode === 'short') {
+      // Declares more than it sends, then drops the connection.
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-length': String(resultBytes.length + 100) });
+      res.write(resultBytes);
+      setTimeout(() => res.destroy(), 50);
+      return;
+    }
+    if (resultMode === 'empty') {
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-length': '0' });
+      res.end();
+      return;
+    }
+    if (resultMode === 'gzip') {
+      const zipped = gzipSync(resultBytes);
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-encoding': 'gzip', 'content-length': String(zipped.length) });
+      res.end(zipped);
+      return;
+    }
+    if (resultChunked) {
+      res.writeHead(200, { 'content-type': 'application/pdf', 'transfer-encoding': 'chunked' });
+    } else {
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-length': String(resultBytes.length) });
+    }
+    res.end(resultBytes);
+    return;
+  }
   const chunks: Buffer[] = [];
   req.on('data', (c: Buffer) => chunks.push(c));
   req.on('end', () => {
+    if (req.url === '/converter') {
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+      converterBodies.push({ ...body, authorized: Boolean(req.headers.authorization) });
+      void (converterAnswer ?? defaultConverter)(body).then((answer) => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(answer));
+      });
+      return;
+    }
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
     commands.push({ ...body, authorized: Boolean(req.headers.authorization) });
     res.writeHead(200, { 'content-type': 'application/json' });
@@ -125,6 +189,13 @@ beforeEach(() => {
   notifyAnswer = 200;
   commands = [];
   commandAnswer = { error: 0 };
+  converterBodies = [];
+  converterAnswer = null;
+  converterApp = null;
+  resultBytes = PDF_BYTES;
+  resultChunked = false;
+  resultMode = 'ok';
+  uploads = [];
 });
 
 const FILE = 'http://127.0.0.1:9/contract.docx';
@@ -339,7 +410,7 @@ describe('GET /api/documents/source/:token (EDIT-2.2: the service fetches, pinne
       const { app, url } = await documentUrlOf(documentOpen({ fileUrl: fileUrl('declared-big.docx') }));
       const got = await app.inject({ method: 'GET', url: new URL(url).pathname });
       expect(got.statusCode).toBe(502);
-      expect(got.json()).toEqual({ error: 'source_refused' });
+      expect(got.json()).toEqual({ error: 'source_over_cap' });
     } finally {
       config.maxSourceBytes = cap;
     }
@@ -353,6 +424,54 @@ describe('GET /api/documents/source/:token (EDIT-2.2: the service fetches, pinne
     const { url } = await documentUrlOf(documentOpen({ fileUrl: fileUrl('contract.docx') }));
     const opened = openSource(new URL(url).pathname.split('/').pop() ?? '', config.sealKeys);
     expect(opened.ok && opened.payload.exp - Date.now()).toBeLessThanOrEqual(5 * 60 * 1000);
+  });
+
+  it('admits a conversion token only while its conversion runs', async () => {
+    const token = sealSource({ c: 'crm', k: 'crm.convert_gone.v0', f: fileUrl('contract.docx'), exp: Date.now() + 60_000, h: 'convert', n: 'gone' }, config.sealKeys);
+    fileFetches = 0;
+    expect((await buildApp().inject({ method: 'GET', url: `/api/documents/source/${token}` })).statusCode).toBe(404);
+    expect(fileFetches).toBe(0);
+    expectSource('live');
+    try {
+      const live = sealSource({ c: 'crm', k: 'crm.convert_live.v0', f: fileUrl('contract.docx'), exp: Date.now() + 60_000, h: 'convert', n: 'live' }, config.sealKeys);
+      expect((await buildApp().inject({ method: 'GET', url: `/api/documents/source/${live}` })).statusCode).toBe(200);
+    } finally {
+      endSource('live');
+    }
+  });
+
+  it('checks an editing token against fileHosts and a conversion token against convertSourceHosts', async () => {
+    setConsumersForTest([{ ...crm(), fileHosts: ['127.0.0.1'], convertSourceHosts: ['localhost'] }, fastmail]);
+    const viaLocalhost = `http://localhost:${filePort}/contract.docx`;
+    const viaIp = fileUrl('contract.docx');
+    const edit = (f: string) => sealSource({ c: 'crm', k: 'crm.d.e1', f, exp: Date.now() + 60_000 }, config.sealKeys);
+    expectSource('scope');
+    try {
+      const conv = (f: string) => sealSource({ c: 'crm', k: 'crm.convert_scope.v0', f, exp: Date.now() + 60_000, h: 'convert', n: 'scope' }, config.sealKeys);
+      const app = buildApp();
+      const status = async (t: string) => (await app.inject({ method: 'GET', url: `/api/documents/source/${t}` })).statusCode;
+      expect(await status(edit(viaIp))).toBe(200);
+      expect(await status(edit(viaLocalhost))).toBe(404);
+      expect(await status(conv(viaLocalhost))).toBe(200);
+      expect(await status(conv(viaIp))).toBe(404);
+    } finally {
+      endSource('scope');
+    }
+  });
+
+  it('gives up on a slow source at EDITOR_SOURCE_TIMEOUT_MS with an error before any byte (ADR F17)', async () => {
+    const limit = config.sourceTimeoutMs;
+    config.sourceTimeoutMs = 500;
+    try {
+      const { app, url } = await documentUrlOf(documentOpen({ fileUrl: fileUrl('endless.docx') }));
+      const started = Date.now();
+      const res = await app.inject({ method: 'GET', url: new URL(url).pathname });
+      expect(res.statusCode).toBe(502);
+      expect(res.json()).toEqual({ error: 'source_unavailable' });
+      expect(Date.now() - started).toBeLessThan(2000);
+    } finally {
+      config.sourceTimeoutMs = limit;
+    }
   });
 
   it('limits tokens that do not open per address, like every other route', async () => {
@@ -401,14 +520,14 @@ describe('GET /api/documents/source/:token (EDIT-2.2: the service fetches, pinne
       }
     });
 
-    it('fails the body read when the cap is passed after the answer began, never a short file', async () => {
+    it('refuses a cap passed part way through the read before answering anything (ADR F17)', async () => {
       const cap = config.maxSourceBytes;
       config.maxSourceBytes = 1024;
       const { app, target } = await served('late-big.docx');
       try {
         const res = await fetch(target);
-        expect(res.status).toBe(200);
-        await expect(res.arrayBuffer()).rejects.toThrow();
+        expect(res.status).toBe(502);
+        expect(await res.json()).toEqual({ error: 'source_over_cap' });
       } finally {
         config.maxSourceBytes = cap;
         await app.close();
@@ -427,14 +546,59 @@ describe('GET /api/documents/source/:token (EDIT-2.2: the service fetches, pinne
       }
     });
 
-    it('fails the response when the upstream dies part way, with its declared length forwarded', async () => {
+    it('refuses an upstream that dies part way before answering anything, never a short file (ADR F17)', async () => {
       const { app, target } = await served('dies.docx');
       try {
         const res = await fetch(target);
-        expect(res.headers.get('content-length')).toBe('4096');
-        await expect(res.arrayBuffer()).rejects.toThrow();
+        expect(res.status).toBe(502);
+        expect(await res.json()).toEqual({ error: 'source_unavailable' });
       } finally {
         await app.close();
+      }
+    });
+
+    it('answers 502 at once, and stops reading the source, when its conversion ends (battery E3b)', async () => {
+      const app = buildApp();
+      const address = await app.listen({ port: 0, host: '127.0.0.1' });
+      try {
+        endlessClosedAt = 0;
+        expectSource('probe1');
+        const token = sealSource({ c: 'crm', k: 'crm.convert_probe1.v0', f: fileUrl('endless.docx'), exp: Date.now() + 60_000, h: 'convert', n: 'probe1' }, config.sealKeys);
+        const pending = fetch(`${address}/api/documents/source/${token}`);
+        await new Promise((r) => setTimeout(r, 300));
+        const endedAt = Date.now();
+        endSource('probe1');
+        const res = await pending;
+        expect(res.status).toBe(502);
+        expect(Date.now() - endedAt).toBeLessThan(1000);
+        for (let i = 0; i < 40 && endlessClosedAt === 0; i += 1) await new Promise((r) => setTimeout(r, 50));
+        expect(endlessClosedAt).toBeGreaterThanOrEqual(endedAt);
+      } finally {
+        await app.close();
+      }
+    });
+
+    it('bounds the reads held in memory at once with an immediate 503', async () => {
+      const limit = config.sourceConcurrency;
+      config.sourceConcurrency = 1;
+      const first = await served('endless.docx');
+      const { url } = await documentUrlOf(documentOpen({ fileUrl: fileUrl('contract.docx') }));
+      try {
+        const abort = new AbortController();
+        const pending = fetch(first.target, { signal: abort.signal }).catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 300));
+        const second = await first.app.inject({ method: 'GET', url: new URL(url).pathname });
+        expect(second.statusCode).toBe(503);
+        expect(second.json()).toEqual({ error: 'busy' });
+        abort.abort();
+        await pending;
+        // The hang-up released the slot: the next read is admitted.
+        await new Promise((r) => setTimeout(r, 200));
+        const third = await first.app.inject({ method: 'GET', url: new URL(url).pathname });
+        expect(third.statusCode).toBe(200);
+      } finally {
+        config.sourceConcurrency = limit;
+        await first.app.close();
       }
     });
 
@@ -443,11 +607,11 @@ describe('GET /api/documents/source/:token (EDIT-2.2: the service fetches, pinne
       try {
         endlessClosedAt = 0;
         const abort = new AbortController();
-        const res = await fetch(target, { signal: abort.signal });
-        const reader = res.body?.getReader();
-        await reader?.read();
+        const pending = fetch(target, { signal: abort.signal }).catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 300));
         const abortedAt = Date.now();
         abort.abort();
+        await pending;
         for (let i = 0; i < 40 && endlessClosedAt === 0; i += 1) await new Promise((r) => setTimeout(r, 50));
         expect(endlessClosedAt).toBeGreaterThanOrEqual(abortedAt);
         expect(endlessClosedAt - abortedAt).toBeLessThan(2000);
@@ -583,6 +747,233 @@ describe('drop and forgotten files (EDIT-2.5)', () => {
     const del = await app.inject({ method: 'DELETE', url: '/api/documents/keys/crm.doc_1.e1/forgotten', headers: { authorization: 'Bearer crm-key' } });
     expect(del.json()).toEqual({ result: 'ok' });
     expect(commands.map((c) => c['c'])).toEqual(['getForgotten', 'getForgotten', 'deleteForgotten']);
+  });
+});
+
+describe('POST /api/documents/convert (EDIT-3)', () => {
+  const at = (p: string) => `http://127.0.0.1:${filePort}${p}`;
+  async function convert(body: Record<string, unknown>, key = 'crm-key') {
+    const app = buildApp();
+    converterApp = app;
+    const res = await app.inject({ method: 'POST', url: '/api/documents/convert', headers: { authorization: `Bearer ${key}` }, payload: body });
+    return res;
+  }
+
+  it('converts through the source route and uploads the PDF with its length, answering size and sha256', async () => {
+    const res = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ size: PDF_BYTES.length, sha256: createHash('sha256').update(PDF_BYTES).digest('hex') });
+    const sent = converterBodies[0];
+    expect(sent).toMatchObject({ async: false, filetype: 'docx', outputtype: 'pdf', authorized: true });
+    expect(String(sent?.['url']).startsWith('http://api:3020/api/documents/source/')).toBe(true);
+    expect(String(sent?.['url'])).not.toContain('127.0.0.1');
+    expect(String(sent?.['key'])).toMatch(/^crm\.convert_[0-9a-f]{32}\.v0$/);
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0]?.bytes.equals(PDF_BYTES)).toBe(true);
+    expect(uploads[0]?.type).toBe('application/pdf');
+    expect(uploads[0]?.length).toBe(String(PDF_BYTES.length));
+  });
+
+  it('holds a result without a declared length in memory and still uploads it with one', async () => {
+    resultChunked = true;
+    const res = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+    expect(res.statusCode).toBe(200);
+    expect(uploads[0]?.length).toBe(String(PDF_BYTES.length));
+  });
+
+  it.each([
+    ['a source host outside convertSourceHosts', { sourceUrl: 'http://8.8.8.8/a.docx', uploadUrl: 'http://127.0.0.1:9/u' }, 400, 'source_url_refused'],
+    ['a metadata source', { sourceUrl: 'http://169.254.169.254/latest/meta-data/', uploadUrl: 'http://127.0.0.1:9/u' }, 400, 'source_url_refused'],
+    ['an upload host outside convertUploadHosts', { sourceUrl: 'http://127.0.0.1:9/a.docx', uploadUrl: 'http://8.8.8.8/u' }, 400, 'upload_url_refused'],
+  ])('refuses %s before anything is fetched', async (_label, body, status, error) => {
+    const res = await convert(body);
+    expect(res.statusCode).toBe(status);
+    expect(res.json()).toEqual({ error });
+    expect(converterBodies).toHaveLength(0);
+  });
+
+  it('names the source failure DocumentServer reports only as "download failed"', async () => {
+    const cap = config.maxSourceBytes;
+    config.maxSourceBytes = 1024;
+    try {
+      const big = await convert({ sourceUrl: at('/declared-big.docx'), uploadUrl: at('/upload/ok') });
+      expect(big.statusCode).toBe(413);
+      expect(big.json()).toEqual({ error: 'input_too_large' });
+    } finally {
+      config.maxSourceBytes = cap;
+    }
+    const missing = await convert({ sourceUrl: at('/missing.docx'), uploadUrl: at('/upload/ok') });
+    expect(missing.json()).toEqual({ error: 'source_unavailable' });
+    // A redirect from the source host is not followed.
+    fileFetches = 0;
+    const redirected = await convert({ sourceUrl: at('/redirect.docx'), uploadUrl: at('/upload/ok') });
+    expect(redirected.json()).toEqual({ error: 'source_unavailable' });
+    expect(uploads).toHaveLength(0);
+  });
+
+  it('maps a converter timeout, an unfinished conversion, and a converter error', async () => {
+    const timeout = config.convertTimeoutMs;
+    config.convertTimeoutMs = 300;
+    converterAnswer = () => new Promise((r) => setTimeout(() => r({ endConvert: true }), 1000));
+    try {
+      const slow = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+      expect(slow.statusCode).toBe(504);
+      expect(slow.json()).toEqual({ error: 'conversion_timeout' });
+    } finally {
+      config.convertTimeoutMs = timeout;
+    }
+    // "Not finished" is polled (the same request again) until the deadline.
+    config.convertTimeoutMs = 2500;
+    try {
+      converterAnswer = async () => ({ endConvert: false, percent: 40 });
+      expect((await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') })).json()).toEqual({ error: 'conversion_timeout' });
+      expect(converterBodies.length).toBeGreaterThanOrEqual(2);
+      converterBodies = [];
+      let calls = 0;
+      converterAnswer = async (body) => (++calls < 2 ? { endConvert: false, percent: 60 } : defaultConverter(body));
+      const polled = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+      expect(polled.statusCode).toBe(200);
+      expect(new Set(converterBodies.map((b) => b['key'])).size).toBe(1);
+    } finally {
+      config.convertTimeoutMs = timeout;
+    }
+    converterAnswer = async () => ({ error: -3 });
+    expect((await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') })).json()).toEqual({ error: 'conversion_failed' });
+    converterAnswer = async () => ({ endConvert: true, fileUrl: 'https://evil.test/output.pdf' });
+    expect((await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') })).json()).toEqual({ error: 'conversion_failed' });
+  });
+
+  it('stops its source fetch when a conversion ends, so DocumentServer is not left reading (battery E3b)', async () => {
+    const timeout = config.convertTimeoutMs;
+    config.convertTimeoutMs = 400;
+    endlessClosedAt = 0;
+    // DocumentServer starts reading the source and keeps waiting for it.
+    converterAnswer = (body) => {
+      void converterApp?.inject({ method: 'GET', url: new URL(String(body['url'])).pathname }).catch(() => undefined);
+      return new Promise((r) => setTimeout(() => r({ error: -4 }), 3000));
+    };
+    try {
+      const res = await convert({ sourceUrl: at('/endless.docx'), uploadUrl: at('/upload/ok') });
+      const answeredAt = Date.now();
+      expect(res.json()).toEqual({ error: 'conversion_timeout' });
+      for (let i = 0; i < 40 && endlessClosedAt === 0; i += 1) await new Promise((r) => setTimeout(r, 50));
+      expect(endlessClosedAt).toBeGreaterThan(0);
+      expect(endlessClosedAt - answeredAt).toBeLessThan(1000);
+    } finally {
+      config.convertTimeoutMs = timeout;
+    }
+  });
+
+  it('refuses a result over the output cap, and reports an upload that fails, redirects, or cannot connect', async () => {
+    const cap = config.maxConvertOutputBytes;
+    config.maxConvertOutputBytes = 10;
+    try {
+      const big = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+      expect(big.statusCode).toBe(413);
+      expect(big.json()).toEqual({ error: 'output_too_large' });
+      expect(uploads).toHaveLength(0);
+    } finally {
+      config.maxConvertOutputBytes = cap;
+    }
+    for (const uploadUrl of [at('/upload/fail'), at('/upload/redirect'), 'http://127.0.0.1:9/upload']) {
+      const res = await convert({ sourceUrl: at('/contract.docx'), uploadUrl });
+      expect(res.statusCode).toBe(502);
+      expect(res.json()).toEqual({ error: 'upload_failed' });
+    }
+  });
+
+  it('never uploads part of a result: a result short of its length fails before the upload; a gzip result arrives whole', async () => {
+    resultMode = 'short';
+    const short = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+    expect(short.statusCode).toBe(502);
+    expect(short.json()).toEqual({ error: 'conversion_failed' });
+    expect(uploads).toHaveLength(0);
+    resultMode = 'empty';
+    expect((await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') })).json()).toEqual({ error: 'conversion_failed' });
+    expect(uploads).toHaveLength(0);
+    resultMode = 'gzip';
+    resultBytes = Buffer.alloc(50_000, 9);
+    const zipped = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+    expect(zipped.statusCode).toBe(200);
+    expect(uploads[0]?.bytes.equals(resultBytes)).toBe(true);
+  });
+
+  it('refuses a metadata source even when the consumer lists its address', async () => {
+    setConsumersForTest([{ ...crm(), convertSourceHosts: ['169.254.169.254', '127.0.0.1'] }, fastmail]);
+    const res = await convert({ sourceUrl: 'http://169.254.169.254/latest/meta-data/', uploadUrl: at('/upload/ok') });
+    expect(res.json()).toEqual({ error: 'source_url_refused' });
+    expect(converterBodies).toHaveLength(0);
+  });
+
+  it('limits conversions in total, and a refused key leaks no slot', async () => {
+    const total = config.convertConcurrencyTotal;
+    config.convertConcurrencyTotal = 1;
+    let release: () => void = () => undefined;
+    converterAnswer = (body) => new Promise((r) => { release = () => void defaultConverter(body).then(r); });
+    try {
+      setConsumersForTest([crm(), { ...crm(), id: 'docs', auth: { mode: 'api-key', key: 'docs-key' } }, fastmail]);
+      const first = convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+      await new Promise((r) => setTimeout(r, 100));
+      const other = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') }, 'docs-key');
+      expect(other.json()).toEqual({ error: 'busy' });
+      release();
+      expect((await first).statusCode).toBe(200);
+    } finally {
+      config.convertConcurrencyTotal = total;
+    }
+    // A consumer id too long for a key fails the key, twice, and still is not "busy" afterwards.
+    setConsumersForTest([{ ...crm(), id: 'c'.repeat(90), auth: { mode: 'api-key', key: 'long-key' } }]);
+    for (let i = 0; i < 3; i += 1) {
+      expect((await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') }, 'long-key')).json()).toEqual({ error: 'conversion_failed' });
+    }
+  });
+
+  it('cancels a conversion whose consumer hangs up, so the retry is not refused as busy', async () => {
+    const limit = config.convertConcurrency;
+    config.convertConcurrency = 1;
+    const app = buildApp();
+    converterApp = app;
+    const address = await app.listen({ port: 0, host: '127.0.0.1' });
+    try {
+      converterAnswer = () => new Promise((r) => setTimeout(() => r({ endConvert: false }), 300));
+      const abort = new AbortController();
+      const pending = fetch(`${address}/api/documents/convert`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer crm-key' },
+        body: JSON.stringify({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') }),
+        signal: abort.signal,
+      }).catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 200));
+      abort.abort();
+      await pending;
+      await new Promise((r) => setTimeout(r, 600));
+      converterAnswer = null;
+      const retry = await app.inject({ method: 'POST', url: '/api/documents/convert', headers: { authorization: 'Bearer crm-key' }, payload: { sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') } });
+      expect(retry.statusCode).toBe(200);
+    } finally {
+      config.convertConcurrency = limit;
+      await app.close();
+    }
+  });
+
+  it('limits concurrent conversions per consumer, and refuses a legacy-only consumer', async () => {
+    const limit = config.convertConcurrency;
+    config.convertConcurrency = 1;
+    let release: () => void = () => undefined;
+    converterAnswer = (body) => new Promise((r) => { release = () => void defaultConverter(body).then(r); });
+    try {
+      const first = convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+      await new Promise((r) => setTimeout(r, 100));
+      const second = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') });
+      expect(second.statusCode).toBe(429);
+      expect(second.json()).toEqual({ error: 'busy' });
+      release();
+      expect((await first).statusCode).toBe(200);
+    } finally {
+      config.convertConcurrency = limit;
+    }
+    const legacy = await convert({ sourceUrl: at('/contract.docx'), uploadUrl: at('/upload/ok') }, 'fm-key');
+    expect(legacy.statusCode).toBe(403);
   });
 });
 

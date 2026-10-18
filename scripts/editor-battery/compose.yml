@@ -59,6 +59,9 @@ services:
       EDITOR_ENV: local
       EDITOR_SEAL_KEYS: ${BATTERY_SEAL_KEY:?set by the runner}
       EDITOR_NOTIFY_SECRET_BATTERY: ${BATTERY_NOTIFY_SECRET:?set by the runner}
+      # EDIT-3: small enough for the battery to provoke input_too_large and conversion_timeout.
+      EDITOR_MAX_SOURCE_BYTES: "5242880"
+      EDITOR_CONVERT_TIMEOUT_MS: "20000"
       CONSUMERS: >-
         [{"id":"battery","name":"Battery consumer","auth":{"mode":"api-key","key":"${BATTERY_API_KEY:?set by the runner}"},
           "profiles":["document","template","view"],"callbackUrl":"http://stub:18201/consumer-callback",

@@ -7,6 +7,7 @@
  *   GET    /editor/:token                         public: the editor page (or the expired page)
  *   GET    /api/documents/source/:token           DocumentServer: the consumer's file, fetched by the service on a pinned address
  *   POST   /api/documents/callback                DocumentServer: verified, then notified to the consumer
+ *   POST   /api/documents/convert                 consumer: a document in its storage to a PDF in its storage (EDIT-3)
  *   POST   /api/documents/keys/:key/drop          consumer: drop a key's users (the closing sequence)
  *   GET    /api/documents/keys/:key/forgotten     consumer: a final save DocumentServer kept (ADR F1)
  *   DELETE /api/documents/keys/:key/forgotten     consumer: release it after storing it
@@ -16,8 +17,6 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { Readable, Transform, pipeline } from 'node:stream';
-import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import jwt from 'jsonwebtoken';
 import { checkCallback } from '../callback-auth.js';
 import { config } from '../config.js';
@@ -25,10 +24,15 @@ import type { Consumer, Profile } from '../consumers.js';
 import { findConsumerById, getConsumers, notificationSecrets } from '../consumers.js';
 import { buildKey, parseKey } from '../document-key.js';
 import { COMMAND_ERRORS, command, onBase } from '../docserver.js';
+import type { ConvertFileType } from '../convert.js';
+import { CONVERT_FILE_TYPES, ConvertError, convertToPdf } from '../convert.js';
 import { buildEditorConfig } from '../editor-config.js';
 import { renderEditorPage, renderExpiredPage } from '../editor-page.js';
 import { hostOf, keyRef } from '../log-safety.js';
 import { STATUS_EVENTS, buildNotification, deliver } from '../notify.js';
+import { recordSource, sourceActive, sourceSignal } from '../source-outcomes.js';
+import { partsStream, readCapped } from '../capped-read.js';
+import type { CheckedUrl } from '../safe-url.js';
 import { UrlRefused, checkUrl, safeFetch } from '../safe-url.js';
 import type { SessionPayload } from '../session-token.js';
 import { SealError, openSession, openSource, sealSession, sealSource, sessionExpiry } from '../session-token.js';
@@ -82,6 +86,29 @@ const openSchema = {
   },
 } as const;
 
+const convertSchema = {
+  body: {
+    type: 'object',
+    required: ['sourceUrl', 'uploadUrl'],
+    properties: {
+      sourceUrl: { type: 'string', minLength: 1, maxLength: 2048 },
+      uploadUrl: { type: 'string', minLength: 1, maxLength: 2048 },
+      fileType: { type: 'string', enum: [...CONVERT_FILE_TYPES] },
+    },
+    additionalProperties: false,
+  },
+} as const;
+
+/** The source's type from its URL path, else docx. */
+function inferConvertType(sourceUrl: string): ConvertFileType {
+  try {
+    const ext = new URL(sourceUrl).pathname.split('.').pop()?.toLowerCase();
+    return (CONVERT_FILE_TYPES as readonly string[]).includes(ext ?? '') ? (ext as ConvertFileType) : 'docx';
+  } catch {
+    return 'docx';
+  }
+}
+
 const keyParams = {
   params: {
     type: 'object',
@@ -114,7 +141,33 @@ function refuse(reply: FastifyReply, status: number, error: string) {
 /** How long a source token lives, and how many fetches one token may make (EDIT-2.2). */
 const SOURCE_TOKEN_TTL_MS = 5 * 60 * 1000;
 const SOURCE_FETCHES_PER_TOKEN = 10;
-const SOURCE_OVER_CAP = 'source_over_cap';
+
+/** Source reads in progress (in-process; one API instance per environment). */
+let sourceReads = 0;
+
+type SourceRead =
+  | { ok: true; parts: Buffer[]; size: number; type: string }
+  | { ok: false; reason: 'over_cap' | 'upstream_status' | 'unreachable' | 'cut' | 'aborted'; log: Record<string, unknown> };
+
+/**
+ * Reads a checked source whole, under the cap (ADR F17): no redirects, `identity` encoding, a
+ * declared length over the cap refused before reading, a body short of its declared length refused.
+ */
+async function readSource(checked: CheckedUrl, signal: AbortSignal, cap: number): Promise<SourceRead> {
+  let upstream;
+  try {
+    upstream = await safeFetch(checked, { method: 'GET', headers: { 'accept-encoding': 'identity' }, signal });
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError') ? 'aborted' : 'unreachable', log: {} };
+  }
+  if (upstream.status !== 200) {
+    await upstream.body?.cancel().catch(() => undefined);
+    return { ok: false, reason: 'upstream_status', log: { upstreamStatus: upstream.status } };
+  }
+  const read = await readCapped(upstream, cap);
+  if (!read.ok) return { ok: false, reason: read.reason, log: { bytes: read.bytes, declared: read.declared } };
+  return { ok: true, parts: read.parts, size: read.size, type: upstream.headers.get('content-type') ?? 'application/octet-stream' };
+}
 
 /**
  * HTTP status for a DocumentServer command error: an unknown key is 404; DocumentServer's own
@@ -258,11 +311,15 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     return reply.type('text/html').send(page.html);
   });
 
-  // --- Document source (EDIT-2.2) ---
+  // --- Document source (EDIT-2.2, EDIT-3) ---
   // DocumentServer fetches the document here instead of from the consumer's URL, so the fetch is
   // made by the service on the addresses it checked (a DNS answer that changes after `open`
   // cannot steer it inward; DocumentServer's own filter is bypassed for signed configs, ADR F3).
-  // Every refusal is the same 404 to DocumentServer; the reason is logged without the URL.
+  // The whole file is read before anything is answered (ADR F17): a download that ends part way
+  // wedges DocumentServer's one converter, which also serves every editor open, so DocumentServer
+  // only ever receives a complete file with its length, or an error before any byte.
+  // A refusal of the token is a 404; a failure of the source a 502; too many reads at once a 503
+  // (DocumentServer retries); reasons are logged without the URL.
   app.get<{ Params: { token: string } }>(
     '/api/documents/source/:token',
     {
@@ -280,16 +337,6 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
           timeWindow: (_r: FastifyRequest, key: string) => (key.startsWith('source:') ? SOURCE_TOKEN_TTL_MS : config.rateLimitWindowMs),
         },
       },
-      // A body over the cap fails before any byte went out only through this handler: answer in the
-      // service's own shape. DocumentServer needs only the status.
-      errorHandler: (err: Error, req: FastifyRequest, reply: FastifyReply) => {
-        if (err.message === SOURCE_OVER_CAP) {
-          // The route already set the file's type and, perhaps, its length; this answer is JSON.
-          reply.removeHeader('content-length');
-          return reply.status(502).type('application/json; charset=utf-8').send(JSON.stringify({ error: SOURCE_OVER_CAP }));
-        }
-        return reply.send(err);
-      },
     },
     async (req, reply) => {
       reply.header('Cache-Control', 'no-store');
@@ -299,83 +346,81 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
         req.log.warn({ reason: opened.ok ? 'unknown_consumer' : opened.reason }, 'Document source refused');
         return reply.status(404).send({ error: 'not_found' });
       }
-      const { f: fileUrl, k: key } = opened.payload;
+      const { f: fileUrl, k: key, n: conversion } = opened.payload;
+      const isConversion = opened.payload.h === 'convert';
+      // A conversion's token is admitted only while its conversion runs (and only for a profile
+      // consumer): a late or repeated fetch after it ended gets nothing.
+      // Taken now, before any await: a conversion that ends meanwhile still aborts this read.
+      const conversionSignal = sourceSignal(conversion);
+      if (isConversion && (!conversion || !sourceActive(conversion) || !conversionSignal || !consumer.profiles?.length)) {
+        req.log.warn({ keyRef: keyRef(key), reason: 'conversion_ended' }, 'Document source refused');
+        return reply.status(404).send({ error: 'not_found' });
+      }
+      // The consumer's current registration decides, not the one at `open`: an editing source is
+      // checked against fileHosts, a conversion's against convertSourceHosts (EDIT-3).
+      const hosts = isConversion ? consumer.convertSourceHosts : consumer.fileHosts;
       let checked;
       try {
-        // The consumer's current registration decides, not the one at `open`.
-        checked = await checkUrl(fileUrl, { ...(consumer.profiles?.length ? { allowHosts: consumer.fileHosts ?? [] } : {}), local: !config.strict });
+        checked = await checkUrl(fileUrl, { ...(consumer.profiles?.length ? { allowHosts: hosts ?? [] } : {}), local: !config.strict });
       } catch (err) {
+        recordSource(conversion, 'refused');
         req.log.warn({ keyRef: keyRef(key), host: hostOf(fileUrl), reason: err instanceof UrlRefused ? err.code : 'invalid' }, 'Document source refused');
         return reply.status(404).send({ error: 'not_found' });
       }
-      let upstream;
-      try {
-        // identity: a compressed answer would be decompressed by fetch while its Content-Length
-        // still counted the compressed bytes, so forwarding it would cut the file short.
-        upstream = await safeFetch(checked, { method: 'GET', headers: { 'accept-encoding': 'identity' }, signal: AbortSignal.timeout(config.sourceTimeoutMs) });
-      } catch (err) {
-        req.log.warn({ keyRef: keyRef(key), host: hostOf(fileUrl), reason: err instanceof Error && err.name === 'TimeoutError' ? 'timeout' : 'network' }, 'Document source unreachable');
-        return reply.status(502).send({ error: 'source_unreachable' });
+      // DocumentServer may have gone, or the conversion ended, while the address was resolved.
+      if (reply.raw.destroyed) return reply;
+      if (conversionSignal?.aborted) return reply.status(404).send({ error: 'not_found' });
+      // Whole files are held in memory while they are read and sent, so the number at once is bounded.
+      if (sourceReads >= config.sourceConcurrency) {
+        recordSource(conversion, 'busy');
+        req.log.warn({ keyRef: keyRef(key), host: hostOf(fileUrl), reason: 'busy' }, 'Document source refused');
+        return reply.status(503).header('Retry-After', '1').send({ error: 'busy' });
       }
-      // A length is trusted only for an uncompressed answer (a host may encode despite `identity`).
-      const encoding = (upstream.headers.get('content-encoding') ?? 'identity').trim().toLowerCase();
-      const declaredHeader = encoding === 'identity' ? upstream.headers.get('content-length') : null;
-      const declaredNumber = declaredHeader === null ? NaN : Number(declaredHeader);
-      const declared = Number.isSafeInteger(declaredNumber) && declaredNumber >= 0 ? declaredNumber : NaN;
-      if (upstream.status !== 200 || !upstream.body || (Number.isFinite(declared) && declared > config.maxSourceBytes)) {
-        await upstream.body?.cancel().catch(() => undefined);
-        req.log.warn({ keyRef: keyRef(key), host: hostOf(fileUrl), upstreamStatus: upstream.status, tooLarge: declared > config.maxSourceBytes }, 'Document source refused upstream answer');
-        return reply.status(502).send({ error: 'source_refused' });
-      }
-      let seen = 0;
-      let overCap = false;
-      const cap = config.maxSourceBytes;
-      const limiter = new Transform({
-        transform(chunk: Buffer, _enc, done) {
-          seen += chunk.length;
-          if (seen > cap) {
-            overCap = true;
-            done(new Error(SOURCE_OVER_CAP));
-          } else done(null, chunk);
-        },
-      });
-      const body = Readable.fromWeb(upstream.body as unknown as WebReadableStream<Uint8Array>);
-      let clientClosed = false;
-      // pipeline tears both ends down on any failure; DocumentServer going away tears them down too,
-      // so an abandoned fetch stops pulling from the consumer's host at once.
-      let streamed = false;
-      let finished = false;
-      const fields = () => ({ keyRef: keyRef(key), host: hostOf(fileUrl), bytes: seen });
-      // "Served" only once the stream completed and the response itself finished, in either order.
-      const servedIfDone = () => {
-        if (streamed && finished) req.log.info(fields(), 'Document source served');
-      };
-      pipeline(body, limiter, (err) => {
-        if (!err) {
-          streamed = true;
-          servedIfDone();
-        } else if (clientClosed) req.log.info({ ...fields(), reason: 'client_closed' }, 'Document source aborted');
-        else req.log.warn({ ...fields(), reason: overCap ? 'over_cap' : 'upstream' }, 'Document source aborted');
-      });
-      reply.raw.once('finish', () => {
-        finished = true;
-        servedIfDone();
-      });
-      reply.raw.once('close', () => {
-        if (!limiter.writableFinished) {
-          clientClosed = !overCap;
-          limiter.destroy();
+      // The slot is held until the answer has left (or DocumentServer went away), not just until the
+      // handler returns: the buffer lives as long as the response does.
+      sourceReads += 1;
+      let released = false;
+      const release = () => {
+        if (!released) {
+          released = true;
+          sourceReads -= 1;
         }
-        body.destroy();
-      });
-      // A declared length is forwarded, so a body cut short (cap or upstream failure) is a protocol
-      // error for DocumentServer rather than a complete-looking short file; without one the response
-      // is chunked and a cut leaves it unterminated, which is the same.
-      if (Number.isFinite(declared)) reply.header('Content-Length', String(declared));
-      return reply
-        .status(200)
-        .type(upstream.headers.get('content-type') ?? 'application/octet-stream')
-        .send(limiter);
+      };
+      reply.raw.once('finish', release);
+      reply.raw.once('close', release);
+      const fields = { keyRef: keyRef(key), host: hostOf(fileUrl) };
+      try {
+        // Ends the read when DocumentServer goes away, the conversion ends, or time runs out.
+        const hangUp = new AbortController();
+        reply.raw.once('close', () => hangUp.abort());
+        const timeout = AbortSignal.timeout(Math.max(1, Math.min(config.sourceTimeoutMs, opened.payload.exp - Date.now())));
+        const signal = AbortSignal.any([hangUp.signal, timeout, ...(conversionSignal ? [conversionSignal] : [])]);
+        const read = await readSource(checked, signal, config.maxSourceBytes);
+        if (!read.ok) {
+          const why = read.reason === 'aborted'
+            ? (hangUp.signal.aborted ? 'hung_up' : conversionSignal?.aborted ? 'conversion_ended' : 'timeout')
+            : read.reason;
+          recordSource(conversion, read.reason === 'over_cap' ? 'too_large' : 'unavailable');
+          req.log.warn({ ...fields, ...read.log, reason: why }, 'Document source failed');
+          if (reply.raw.destroyed) return reply;
+          return reply.status(502).send({ error: read.reason === 'over_cap' ? 'source_over_cap' : 'source_unavailable' });
+        }
+        recordSource(conversion, 'served');
+        req.log.info({ ...fields, bytes: read.size }, 'Document source served');
+        // A conversion that ends while its file is still being sent cuts the send (and frees the slot).
+        if (conversionSignal?.aborted) return reply.status(404).send({ error: 'not_found' });
+        conversionSignal?.addEventListener('abort', () => {
+          if (!reply.raw.writableFinished) reply.raw.destroy();
+        }, { once: true });
+        return reply
+          .status(200)
+          .type(read.type)
+          .header('Content-Length', String(read.size))
+          .send(partsStream(read.parts));
+      } catch (err) {
+        release();
+        throw err;
+      }
     },
   );
 
@@ -421,6 +466,34 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     // DocumentServer retries a final save only on HTTP 429/5xx (ADR F1).
     if (outcome.answer === 'retry') return reply.status(503).send({ error: 1 });
     return reply.send({ error: 0 });
+  });
+
+  // --- Conversion (EDIT-3) ---
+  app.post<{ Body: { sourceUrl: string; uploadUrl: string; fileType?: ConvertFileType } }>('/api/documents/convert', { schema: convertSchema }, async (req, reply) => {
+    const consumer = actingConsumer(req);
+    if (!consumer) return refuse(reply, 401, 'unauthenticated');
+    // Conversion needs the profile registration's host lists (E5).
+    if (!consumer.profiles?.length) return refuse(reply, 403, 'profile_not_allowed');
+    const fileType = req.body.fileType ?? inferConvertType(req.body.sourceUrl);
+    try {
+      // A consumer that hangs up cancels its conversion, so its retry is not refused as busy.
+      const gone = new AbortController();
+      const onClose = () => {
+        if (!reply.raw.writableFinished) gone.abort();
+      };
+      // The response's close, not the request's: a request emits close once its body has been read.
+      reply.raw.once('close', onClose);
+      let result;
+      try {
+        result = await convertToPdf({ consumer, sourceUrl: req.body.sourceUrl, uploadUrl: req.body.uploadUrl, fileType, cancelled: gone.signal }, (level, fields, msg) => req.log[level](fields, msg));
+      } finally {
+        reply.raw.off('close', onClose);
+      }
+      return reply.send(result);
+    } catch (err) {
+      if (err instanceof ConvertError) return refuse(reply, err.status, err.code);
+      throw err;
+    }
   });
 
   // --- Key commands (the key's own consumer only) ---

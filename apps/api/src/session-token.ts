@@ -47,6 +47,10 @@ export interface SourcePayload {
   k: string;
   f: string;
   exp: number;
+  /** Which host list the file URL is checked against: `fileHosts` (default) or `convertSourceHosts` (EDIT-3). */
+  h?: 'file' | 'convert';
+  /** A conversion's id: the source route records its outcome under it so the conversion can name its error. */
+  n?: string;
 }
 
 type Purpose = 'editor' | 'source';

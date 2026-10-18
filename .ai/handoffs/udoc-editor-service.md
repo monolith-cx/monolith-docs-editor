@@ -12,7 +12,8 @@
 | EDIT-0 (charter) | Done | `0158323` |
 | EDIT-4 (log redaction) | Code-complete and reviewed; not deployed (no hosted editor since the 2026-06-12 decommission) | `9f54904`, `28a27d9` |
 | EDIT-1 (OnlyOffice 10.0.0.1 and the battery) | Done (U13 waived by Josh) | `dfbb48e` |
-| EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed; uncommitted | — |
+| EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed | `c7bfa21` |
+| EDIT-3 (UDOC-1.3) | Code-complete 2026-10-18; not deployed; uncommitted | — |
 
 EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
@@ -29,6 +30,7 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
   - DocumentServer never receives a consumer's file URL. It fetches `/api/documents/source/<sealed source token>`, and the service fetches the file on the checked addresses.
   - Limits: 5-minute tokens, 10 fetches each; no redirects; `identity` encoding; a 100 MB cap; a 120 s timeout.
   - Teardown when DocumentServer hangs up.
+  - (Superseded at EDIT-3, ADR F17: the route now reads each source whole before answering, within 30 s, at most 4 at once.)
 - **Configuration:**
   - Strict `EDITOR_ENV`; every env read is in `config.ts`, with numbers validated.
   - Notification secrets: at least 32 bytes, never shared.
@@ -64,6 +66,24 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 - This is carried to UDOC-3's D16 validation, which must report missing rows on every save, and to the contract (§8, §9).
 - EDIT-5 checks whether the bridge plugin can withdraw the menu item.
 
+### What EDIT-3 changed
+
+- **Conversion:** `POST /api/documents/convert` (profile consumers) takes `sourceUrl`, `uploadUrl`, and `fileType`, and answers `{ size, sha256 }`. Named errors are listed in guide §6.
+  - DocumentServer reads the source through the source route, with a token scoped to `convertSourceHosts` that is admitted only while the conversion runs.
+  - The PDF is read whole and checked, then uploaded with `PUT` and its exact length to the pinned upload address. The consumer's storage never receives part of a file.
+  - "Not finished" is re-polled until the deadline: 90 s, at most 95 s.
+  - Limits: 2 conversions per consumer, 4 in total.
+  - A caller that hangs up cancels its conversion.
+- **ADR F17 (found by battery E3b):** a source download that ends part way, or a slow one, wedges DocumentServer's single converter for minutes or until a restart. The converter also serves every editor open.
+  - The source route now reads every source whole before answering (`capped-read.ts`; at most 4 reads at once; 30 s).
+  - DocumentServer gets a complete file or an error before any byte.
+- **Memory:** each file is held once (never joined or copied). The ceiling is (source reads + conversions) × 100 MB, 800 MB by default.
+- **Metadata addresses:** refused in every environment.
+- **Records:** guide §6, contract 0.2.0-draft §5, ADR F17, and the EDIT-6 follow-ups: raise `maxprocesscount`, add a converter health check, set a container memory limit.
+- **Reviews:** `reviews/review-edit-3-attempt-{1,2,3}-{sonnet,codex}.md`. Attempt 3: Codex PASS, Sonnet PASS-WITH-NITS (applied).
+- **Battery:** `2026-10-18-partial-2002`, 10 pass.
+- **Correction:** a cleanup glob briefly deleted EDIT-2's three committed `-partial-*` records from the worktree. They were restored byte-identical from `c7bfa21`; the review caught it.
+
 ## Blockers and open decisions (Josh)
 
 - **Deploy gate:** EDIT-2 changes the headless API: it removes two routes and refuses the legacy shape from profile consumers. `standalone-app` Phase 0 must close or be re-baselined before EDIT-2 is deployed.
@@ -76,11 +96,12 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 - Four `ERRORS.md` entries were resolved in code, not deployed: the unsigned notification, the editor page, callback trust, and file-URL trust.
 - No new unresolved errors were found.
 - F16 is a design finding, recorded in the ADR; it is not a defect.
+- EDIT-3: one new unresolved error logged in `ERRORS.md` (2026-10-18 13:09): DocumentServer's converter wedges on a partial or slow source download (ADR F17). Known triggers are prevented in the service; recovery (health check and restart) is EDIT-6's.
 
 ## Next step
 
-- EDIT-3 (PDF conversion), which uses the same source route for `sourceUrl`.
-- Then EDIT-5 (the bridge plugin).
+- EDIT-5 (the bridge plugin), which completes the contract's panel section.
+- Then EDIT-6 (hosting), which carries the F17 follow-ups.
 
 ## Follow-ups noted
 
@@ -92,8 +113,8 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
 ## Commit state
 
-- Committed on `main`, not pushed: `0158323`, `9f54904`, `28a27d9`, `dfbb48e`.
-- EDIT-2 is uncommitted and awaits Josh's approval.
+- Committed on `main`, not pushed: `0158323`, `9f54904`, `28a27d9`, `dfbb48e`, `5e5baba`, `c7bfa21` (EDIT-2, with Josh's approval 2026-10-18; Platform `61babd8`).
+- EDIT-3 is uncommitted and awaits Josh's approval.
 - Older sessions' uncommitted work stays out:
   - `.ai/handoffs/standalone-app.md` and `.ai/iddp/config.json`;
   - the standalone-app plan and its review files;

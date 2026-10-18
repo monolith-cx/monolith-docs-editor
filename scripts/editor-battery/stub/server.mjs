@@ -178,6 +178,49 @@ async function originA(req, res) {
     events.push({ t: Date.now(), kind: 'fixture-fetch', path: p, ua: req.headers['user-agent'] ?? '', from: await fetcherOf(req) });
     return serveFile(res, path.join(WORK, 'fixtures'), p.slice('/fixtures/'.length));
   }
+  // EDIT-3 conversion targets: an upload receiver, and sources that misbehave.
+  if (req.method === 'PUT' && p.startsWith('/upload/')) {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const bytes = Buffer.concat(chunks);
+    const name = p.slice('/upload/'.length).replace(/[^A-Za-z0-9_.-]/g, '_');
+    events.push({ t: Date.now(), kind: 'upload', name, bytes: bytes.length, type: req.headers['content-type'] ?? '', length: req.headers['content-length'] ?? '', from: await fetcherOf(req) });
+    if (name === 'redirect') {
+      res.writeHead(307, { location: 'http://169.254.169.254/latest/meta-data/' });
+      return res.end();
+    }
+    await mkdir(path.join(WORK, 'uploads'), { recursive: true });
+    await writeFile(path.join(WORK, 'uploads', name), bytes);
+    res.writeHead(200);
+    return res.end();
+  }
+  if (req.method === 'GET' && p.startsWith('/uploads/')) {
+    return serveFile(res, path.join(WORK, 'uploads'), p.slice('/uploads/'.length));
+  }
+  if (req.method === 'GET' && p === '/sources/redirect.docx') {
+    events.push({ t: Date.now(), kind: 'source-redirect', from: await fetcherOf(req) });
+    res.writeHead(302, { location: 'http://169.254.169.254/latest/meta-data/' });
+    return res.end();
+  }
+  if (req.method === 'GET' && p === '/sources/big.docx') {
+    // 6 MB, over the battery's 5 MB input cap.
+    res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': String(6 * 1024 * 1024) });
+    return res.end(Buffer.alloc(6 * 1024 * 1024, 1));
+  }
+  if (req.method === 'GET' && p === '/sources/cut.docx') {
+    // 19 bytes, then the connection drops mid-body (ADR F17 probe).
+    res.writeHead(200, { 'content-type': 'application/octet-stream' });
+    res.write('xxxxxxxxxxxxxxxxxxx');
+    setTimeout(() => res.destroy(), 2000);
+    return undefined;
+  }
+  if (req.method === 'GET' && p === '/sources/slow.docx') {
+    // Trickles a byte a second and never finishes.
+    res.writeHead(200, { 'content-type': 'application/octet-stream' });
+    const timer = setInterval(() => res.write('x'), 1000);
+    res.on('close', () => clearInterval(timer));
+    return undefined;
+  }
   if (req.method === 'GET' && p.startsWith('/plugins/')) {
     return serveFile(res, path.join(STUB_DIR, 'plugins'), p.slice('/plugins/'.length), {
       'Access-Control-Allow-Origin': '*',

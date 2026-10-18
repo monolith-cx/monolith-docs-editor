@@ -166,9 +166,27 @@ describe('log output carries no access-granting URL (EDIT-4)', () => {
     expect(failed.statusCode).toBe(502);
     const raw = logs.text();
     expect(raw).toContain('Document source served');
-    expect(raw).toContain('Document source unreachable');
+    expect(raw).toContain('Document source failed');
     expect(raw).toContain('"path":"/api/documents/[redacted]"');
     expectNoAccessGrantingUrls(raw, ['SECRET_FILE_SIG', 'SECRET_PANEL_TOKEN']);
+    await app.close();
+  });
+
+  it('a refused conversion logs hosts and codes only, never a signed URL', async () => {
+    useConsumer(`http://127.0.0.1:${receiverPort}/hooks/docs`);
+    const logs = captureLogs();
+    const app = buildApp({ logStream: logs.stream });
+    const convert = (sourceUrl: string, uploadUrl: string) =>
+      app.inject({ method: 'POST', url: '/api/documents/convert', headers: { authorization: 'Bearer crm-key' }, payload: { sourceUrl, uploadUrl } });
+    const badSource = await convert('http://8.8.8.8/c.docx?X-Goog-Signature=SECRET_SOURCE_SIG', 'http://127.0.0.1:9/u?X-Goog-Signature=SECRET_UPLOAD_SIG');
+    expect(badSource.json()).toEqual({ error: 'source_url_refused' });
+    const badUpload = await convert('http://127.0.0.1:9/c.docx?X-Goog-Signature=SECRET_SOURCE_SIG', 'http://8.8.8.8/u?X-Goog-Signature=SECRET_UPLOAD_SIG');
+    expect(badUpload.json()).toEqual({ error: 'upload_url_refused' });
+    const raw = logs.text();
+    expect(raw).toContain('Document conversion failed');
+    expect(raw).toContain('"path":"/api/documents/convert"');
+    expect(raw).toContain('"sourceHost":"8.8.8.8"');
+    expectNoAccessGrantingUrls(raw, ['SECRET_SOURCE_SIG', 'SECRET_UPLOAD_SIG']);
     await app.close();
   });
 

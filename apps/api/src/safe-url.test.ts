@@ -25,15 +25,25 @@ describe('isBlockedAddress', () => {
   it('blocks anything that is not an IP address', () => expect(isBlockedAddress('example.com')).toBe(true));
 });
 
+describe('checkUrl: metadata endpoints (EDIT-3)', () => {
+  it('refuses them even under EDITOR_ENV=local, by name and by address', async () => {
+    for (const url of ['http://metadata.google.internal/computeMetadata/v1/', 'http://metadata/x', 'http://169.254.169.254/latest/meta-data/', 'http://[::ffff:169.254.169.254]/x', 'http://[fd00:ec2::254]/x']) {
+      expect(await refusal(checkUrl(url, { local: true }))).toBe('metadata');
+    }
+    expect(await refusal(checkUrl('http://127.0.0.1:9/x', { local: true }))).toBe('accepted');
+  });
+});
+
 describe('checkUrl (strict)', () => {
   it('refuses http, credentials, local names, and private address literals', async () => {
     expect(await refusal(checkUrl('http://8.8.8.8/x'))).toBe('scheme');
     expect(await refusal(checkUrl('https://user:pass@8.8.8.8/x'))).toBe('credentials');
     expect(await refusal(checkUrl('https://localhost/x'))).toBe('local_name');
-    expect(await refusal(checkUrl('https://metadata.google.internal/x'))).toBe('local_name');
+    expect(await refusal(checkUrl('https://metadata.google.internal/x'))).toBe('metadata');
     expect(await refusal(checkUrl('https://files.internal/x'))).toBe('local_name');
     expect(await refusal(checkUrl('https://127.0.0.1/x'))).toBe('private_address');
-    expect(await refusal(checkUrl('https://[::ffff:169.254.169.254]/x'))).toBe('private_address');
+    expect(await refusal(checkUrl('https://[::ffff:169.254.169.254]/x'))).toBe('metadata');
+    expect(await refusal(checkUrl('https://[::ffff:10.0.0.1]/x'))).toBe('private_address');
     expect(await refusal(checkUrl('not a url'))).toBe('invalid');
   });
 

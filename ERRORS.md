@@ -4,6 +4,11 @@ Durable follow-up log for concrete errors found during sessions and left unresol
 
 ## Unresolved
 
+- [ ] 2026-10-18 13:09 PDT - DocumentServer 10.0.0.1 converter (`docker-compose.yml` image; `apps/api/src/routes/documents.ts` source route) - A source download that ends part way, or a slow one, wedges DocumentServer's single converter (`maxprocesscount: 1`), blocking every conversion and every editor open
+  - Observed via: battery E3b and direct probes against DocumentServer on 10.0.0.1 (EDIT-3, ADR F17): a source sending 19 bytes then dropping left `/converter` unanswered after 200 s; a byte-a-second source kept later conversions at 0 % for 3 min 20 s; no recovery within 6 minutes; only a fresh container recovered. An editor open on the wedged stack never fetched its file.
+  - Impact: one bad source download can take the whole editor service down (no conversions, no editor opens) until DocumentServer is restarted.
+  - Left unresolved because: the defect is in the unmodified OnlyOffice image. The service now prevents the known triggers (the source route reads every source whole and answers only with a complete file or an error before any byte; tested by E3b), but nothing yet detects or recovers a wedge from an unknown trigger. EDIT-6 owns the recovery: a converter health check that restarts DocumentServer after open editors drain, and a higher `maxprocesscount`.
+
 - [ ] 2026-10-17 09:10 PDT - `infrastructure/gce/` (no instance), `connect.monolithdocs.com`, `crm.monolithdocs.com`, `app.monolithdocs.com` - The editor service is down everywhere; callers still point at it
   - Observed via: the EDIT-4 deploy survey: `gcloud compute instances list --project=monolith-docs` returns nothing; `curl https://connect.monolithdocs.com/health` → 530 (Cloudflare 1033, no tunnel connector), `crm.` → 530, `app.` → timeout. The VMs were deliberately deleted on 2026-06-12 (`deploy-pipeline-parity/plan.md`, Phase 4 note).
   - Impact: `fastmail-connect`'s attachment preview (`billing/packages/api/src/routes/docs-proxy.ts`) and the Monolith Connect extension's document editing (`apps/extension/src/lib/docs-api.ts`) fail for every user; Cloudflare still routes the hostnames to a tunnel with no connector.

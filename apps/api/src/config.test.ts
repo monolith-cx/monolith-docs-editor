@@ -48,6 +48,18 @@ describe('config (E4)', () => {
     expect(configProblems(loadConfig({ ...strong, EDITOR_NOTIFY_TIMEOUT_MS: '600000' }), undefined).join(' ')).toContain('10-minute');
   });
 
+  it('bounds the in-memory caps and the conversion limits (ADR F17)', () => {
+    expect(configProblems(loadConfig({ ...strong, EDITOR_MAX_SOURCE_BYTES: '104857601' }), undefined).join(' ')).toContain('EDITOR_MAX_SOURCE_BYTES');
+    expect(configProblems(loadConfig({ ...strong, EDITOR_MAX_CONVERT_OUTPUT_BYTES: '104857601' }), undefined).join(' ')).toContain('EDITOR_MAX_CONVERT_OUTPUT_BYTES');
+    expect(configProblems(loadConfig({ ...strong, EDITOR_CONVERT_CONCURRENCY: '5', EDITOR_CONVERT_CONCURRENCY_TOTAL: '4' }), undefined).join(' ')).toContain('must not exceed');
+    expect(configProblems(loadConfig({ ...strong, EDITOR_CONVERT_TIMEOUT_MS: '120000' }), undefined).join(' ')).toContain('at most 95000');
+    for (const name of ['EDITOR_SOURCE_CONCURRENCY', 'EDITOR_CONVERT_TIMEOUT_MS', 'EDITOR_CONVERT_CONCURRENCY_TOTAL']) {
+      expect(configProblems(loadConfig({ ...strong, [name]: '0' }), undefined).join(' ')).toContain(name);
+    }
+    const defaults = loadConfig({});
+    expect([defaults.sourceTimeoutMs, defaults.sourceConcurrency, defaults.convertTimeoutMs, defaults.convertConcurrency, defaults.convertConcurrencyTotal]).toEqual([30_000, 4, 90_000, 2, 4]);
+  });
+
   it('caps the session lifetime at 12 hours and defaults the callback URL origins to DocumentServer', () => {
     const cfg = loadConfig({ EDITOR_MAX_SESSION_MS: String(48 * 3600_000), ONLYOFFICE_URL: 'http://onlyoffice:80', ONLYOFFICE_PUBLIC_URL: 'https://app.example.com' });
     expect(cfg.maxSessionMs).toBe(12 * 3600_000);

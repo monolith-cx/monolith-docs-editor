@@ -15,7 +15,7 @@ import { isIP } from 'node:net';
 import { Agent, fetch as undiciFetch } from 'undici';
 import type { RequestInit as UndiciRequestInit, Response as UndiciResponse } from 'undici';
 
-export type UrlRefusal = 'invalid' | 'scheme' | 'credentials' | 'host_not_allowed' | 'local_name' | 'private_address' | 'unresolvable';
+export type UrlRefusal = 'invalid' | 'scheme' | 'credentials' | 'host_not_allowed' | 'local_name' | 'private_address' | 'metadata' | 'unresolvable';
 
 export class UrlRefused extends Error {
   constructor(readonly code: UrlRefusal) {
@@ -41,7 +41,29 @@ export interface CheckedUrl {
 }
 
 const LOCAL_SUFFIXES = ['.localhost', '.local', '.internal', '.localdomain', '.home.arpa'];
-const LOCAL_NAMES = new Set(['localhost', 'metadata', 'metadata.google.internal']);
+const LOCAL_NAMES = new Set(['localhost']);
+/**
+ * Cloud metadata endpoints: refused in every environment, `local` included (EDIT-3), by name and by
+ * address (and IPv4-mapped forms). Outside `local` the private-address check covers the rest of
+ * 169.254/16 and every embedded form; under `local` only these exact endpoints are refused.
+ */
+const METADATA_NAMES = new Set(['metadata', 'metadata.google.internal']);
+const METADATA_V4 = '169.254.169.254';
+const METADATA_V6 = [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0254];
+
+function isMetadataAddress(ip: string): boolean {
+  if (isIP(ip) === 4) return ip === METADATA_V4;
+  const h = expandV6(ip);
+  if (!h) return false;
+  if (h.every((x, i) => x === METADATA_V6[i])) return true;
+  // IPv4-mapped (::ffff:a.b.c.d) in any spelling.
+  if (h.slice(0, 5).every((x) => x === 0) && h[5] === 0xffff) {
+    const hi = h[6] ?? 0;
+    const lo = h[7] ?? 0;
+    return `${hi >>> 8}.${hi & 0xff}.${lo >>> 8}.${lo & 0xff}` === METADATA_V4;
+  }
+  return false;
+}
 
 function v4ToInt(ip: string): number {
   return ip.split('.').reduce((acc, part) => (acc << 8) + Number(part), 0) >>> 0;
@@ -153,6 +175,8 @@ export async function checkUrl(raw: string, policy: UrlPolicy = {}): Promise<Che
   if (url.protocol !== 'https:' && !(policy.local && url.protocol === 'http:')) throw new UrlRefused('scheme');
   if (url.username || url.password) throw new UrlRefused('credentials');
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  // Before the allowlist, so a metadata endpoint is named as one even when it is not on the list.
+  if (METADATA_NAMES.has(host.replace(/\.$/, '')) || (isIP(host) && isMetadataAddress(host))) throw new UrlRefused('metadata');
   if (policy.allowHosts && !policy.allowHosts.map((h) => h.toLowerCase()).includes(host)) {
     throw new UrlRefused('host_not_allowed');
   }
@@ -169,6 +193,7 @@ export async function checkUrl(raw: string, policy: UrlPolicy = {}): Promise<Che
     }
   }
   if (addresses.length === 0) throw new UrlRefused('unresolvable');
+  if (addresses.some(isMetadataAddress)) throw new UrlRefused('metadata');
   if (!policy.local && addresses.some(isBlockedAddress)) throw new UrlRefused('private_address');
   return { url, addresses, internal: false };
 }

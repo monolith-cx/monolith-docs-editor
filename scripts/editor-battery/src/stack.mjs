@@ -53,6 +53,8 @@ export async function prepareWork() {
   await rm(WORK_DIR, { recursive: true, force: true });
   await mkdir(path.join(WORK_DIR, 'fixtures'), { recursive: true });
   await mkdir(path.join(WORK_DIR, 'saved'), { recursive: true });
+  // Created here, not by the stub (root in its container), so the next run can clean it.
+  await mkdir(path.join(WORK_DIR, 'uploads'), { recursive: true });
 }
 
 /**

@@ -90,6 +90,7 @@ const SAFE_PATHS = new Set([
   '/api/status',
   '/api/documents/open',
   '/api/documents/callback',
+  '/api/documents/convert',
   '/api/files/upload',
 ]);
 
