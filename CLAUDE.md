@@ -27,7 +27,7 @@ Rules:
 ## Stack And Ports
 
 - API: Fastify + TypeScript on `3020`
-- OnlyOffice DocumentServer: `8.3` on `8080`
+- OnlyOffice DocumentServer: `10.0.0.1` (pinned by digest in `docker-compose.yml`; change only through a battery run, `scripts/editor-battery/`) on `8080`
 - Storage: Google Cloud Storage via signed URLs
 - Infrastructure: Docker Compose locally, GCE + NGINX + Cloudflare Tunnel for hosted environments
 - Auth: consumer-issued integration credentials today, Platform SSO planned for the standalone app surface

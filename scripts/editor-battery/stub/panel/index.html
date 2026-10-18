@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Battery panel</title></head>
+<body style="margin:0;font:12px sans-serif">
+<div id="log">panel loaded</div>
+<script>
+// A consumer-hosted panel page on its own origin (UDOC-1.5 / D14 probe).
+// The expected plugin origin arrives in the fragment; anything else is ignored.
+(function () {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const pluginOrigin = params.get('pluginOrigin');
+  window.__panel = { received: [], ignored: [], pluginOrigin, token: params.get('token') };
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent || event.origin !== pluginOrigin) {
+      window.__panel.ignored.push({ origin: event.origin });
+      return;
+    }
+    window.__panel.received.push(event.data);
+    document.getElementById('log').textContent = 'got ' + JSON.stringify(event.data);
+  });
+  window.parent.postMessage({ type: 'hello', id: 1 }, pluginOrigin);
+})();
+</script>
+</body>
+</html>

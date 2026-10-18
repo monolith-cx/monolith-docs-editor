@@ -1,6 +1,7 @@
 services:
   onlyoffice:
-    image: onlyoffice/documentserver:8.3
+    # Pinned by tag and digest (EDIT-1.3, ADR 2026-10-17-onlyoffice-release-and-licence). Change only through a battery run.
+    image: onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
     ports:
       - "127.0.0.1:8080:80"
     environment:

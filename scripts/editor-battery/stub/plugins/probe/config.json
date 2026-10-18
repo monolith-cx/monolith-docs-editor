@@ -1,0 +1,23 @@
+{
+  "name": "Battery probe",
+  "guid": "asc.{8C2F3A6E-5B1D-4C7A-9E2F-1A3B5C7D9E01}",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Battery probe (test only; never shipped)",
+      "url": "index.html",
+      "icons": ["icon.png", "icon.png"],
+      "isViewer": true,
+      "EditorsSupport": ["word"],
+      "isVisual": true,
+      "isModal": false,
+      "isInsideMode": true,
+      "initDataType": "none",
+      "initData": "",
+      "isUpdateOleOnResize": false,
+      "buttons": [],
+      "type": "panelRight",
+      "size": [360, 600]
+    }
+  ]
+}

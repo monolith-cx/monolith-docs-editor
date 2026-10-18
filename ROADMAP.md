@@ -10,7 +10,7 @@ This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. Th
 
 ### Editor Service for Unified Document Authoring (EDIT)
 
-- Status: `active` (approved 2026-10-16; EDIT-4 log redaction code-complete and checkpoint-reviewed 2026-10-16; no hosted editor exists since the 2026-06-12 decommission, so it ships with the EDIT-6 stand-up; next: EDIT-1, the OnlyOffice upgrade and battery)
+- Status: `active` (approved 2026-10-16; EDIT-4 log redaction code-complete and checkpoint-reviewed 2026-10-16; no hosted editor exists since the 2026-06-12 decommission, so it ships with the EDIT-6 stand-up; EDIT-1, the OnlyOffice 10.0.0.1 upgrade and repeatable battery, run in full 2026-10-17 with the Word round trip blocked; checkpoint review passed with nits, applied)
 - Parent: ecosystem initiative `unified-document-authoring` (UDOC) in Monolith Platform, phase UDOC-1
 - Summary: Latest OnlyOffice Community with a repeatable battery re-run, named editor profiles, stateless per-open sessions in sealed editor URLs, signed and retried consumer notifications, drop, PDF conversion, log redaction, a product-agnostic panel bridge plugin, hosting and capacity, licence posture. Existing consumers keep the legacy open shape until they migrate.
 - Plan: `.ai/initiatives/active/udoc-editor-service/plan.md`

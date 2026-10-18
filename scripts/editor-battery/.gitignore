@@ -1,0 +1,3 @@
+# Scratch output of a battery run (fixtures, saved files, logs). Results worth
+# keeping are written to docs/spikes/results/ instead.
+.work/

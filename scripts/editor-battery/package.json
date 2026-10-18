@@ -1,0 +1,21 @@
+{
+  "name": "@monolith-docs/editor-battery",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Repeatable OnlyOffice DocumentServer battery for UDOC-1 (EDIT-1): scratch stack, fixtures, Playwright checks",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "battery": "node src/run.mjs"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.8",
+    "docxtemplater": "^3.68.0",
+    "jszip": "^3.10.1",
+    "pizzip": "^3.2.0",
+    "playwright": "1.64.1"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

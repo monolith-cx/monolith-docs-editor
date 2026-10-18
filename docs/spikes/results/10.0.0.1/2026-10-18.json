@@ -1,0 +1,617 @@
+{
+  "meta": {
+    "release": "10.0.0.1",
+    "date": "2026-10-18",
+    "image": "onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3",
+    "started": "2026-10-18T06:28:42.431Z",
+    "finished": "2026-10-18T06:53:36.807Z",
+    "host": "altus-labs-dev",
+    "only": null,
+    "dsSettleSeconds": 172,
+    "totals": {
+      "pass": 24,
+      "finding": 4,
+      "record": 7,
+      "blocked": 1
+    }
+  },
+  "results": [
+    {
+      "id": "S0",
+      "title": "Stack smoke: open, probe plugin reads, force-save round trip",
+      "parent": "EDIT-1.2",
+      "result": "pass",
+      "evidence": [
+        "paragraphs read via probe: 14; controls in editor: 7",
+        "forcesave answer: {\"http\":200,\"key\":\"smoke-1792305106228\",\"error\":0}; callback token header/payload-wrapped; url origin http://127.0.0.1:18200",
+        "saved file controls: field:r2(sdtContentLocked), field:r1(sdtContentLocked), field:r2(sdtContentLocked), field:r3(sdtContentLocked), field:r4(sdtContentLocked), field:r5(sdtContentLocked), block:r6(sdtContentLocked)"
+      ],
+      "seconds": 6
+    },
+    {
+      "id": "S1",
+      "title": "The service on the pinned release: open, edit, save, and the consumer notification (legacy shape with a callback)",
+      "parent": "EDIT-1.3",
+      "result": "pass",
+      "evidence": [
+        "open: 200; editor URL served by the service",
+        "consumer notification: status saved, download URL true, signature header false (unsigned today; EDIT-2 signs it)",
+        "the saved file the consumer fetched holds the edit: true"
+      ],
+      "seconds": 20
+    },
+    {
+      "id": "S2",
+      "title": "The service on the pinned release: view-only legacy shape (fastmail-connect) and editable without a callback (Connect extension)",
+      "parent": "EDIT-1.3 / E1",
+      "result": "pass",
+      "evidence": [
+        "fastmail-connect (edit:false, download, print, no callback): open 200; file fetched by DocumentServer true; document canvas drawn true; typed then force-save answered error 4 (want 4: nothing changed, view-only held)",
+        "Connect extension (default permissions, no callback): open 200; file fetched by DocumentServer true; document canvas drawn true; typed then force-save answered error 0 (want 0: edits reached the server)"
+      ],
+      "seconds": 27
+    },
+    {
+      "id": "3",
+      "title": "Field and block controls survive force-save and close-save (sdtContentLocked)",
+      "parent": "UDOC-1.1 / spike 3",
+      "result": "pass",
+      "evidence": [
+        "force-save (status 6): all 7 controls keep tag, lock, value, and run formatting",
+        "close-save (status 2): same",
+        "rep edits present in the final file: true"
+      ],
+      "seconds": 18
+    },
+    {
+      "id": "3cl",
+      "title": "Field and block controls survive force-save and close-save (contentLocked)",
+      "parent": "UDOC-1.1 / spike 3",
+      "result": "pass",
+      "evidence": [
+        "force-save (status 6): all 7 controls keep tag, lock, value, and run formatting",
+        "close-save (status 2): same",
+        "rep edits present in the final file: true"
+      ],
+      "seconds": 18
+    },
+    {
+      "id": "4",
+      "title": "PDF through ConvertService: fields where the editor shows them, fonts embedded (sdtContentLocked)",
+      "parent": "UDOC-1.1 / spike 4",
+      "result": "pass",
+      "evidence": [
+        "refilled value and fields in reading order: true; table cells: true; rep text: true",
+        "fonts: BAAAAA+Liberation Serif-Bold(emb yes), CAAAAA+Liberation Serif(emb yes), DAAAAA+Liberation Serif-Italic(emb yes); all embedded true; bold and italic faces present true",
+        "conversion: {\"endConvert\":true,\"percent\":100,\"fileUrlOrigin\":\"http://127.0.0.1:18200\"}"
+      ],
+      "seconds": 7
+    },
+    {
+      "id": "4cl",
+      "title": "PDF through ConvertService: fields where the editor shows them, fonts embedded (contentLocked)",
+      "parent": "UDOC-1.1 / spike 4",
+      "result": "pass",
+      "evidence": [
+        "refilled value and fields in reading order: true; table cells: true; rep text: true",
+        "fonts: BAAAAA+Liberation Serif-Bold(emb yes), CAAAAA+Liberation Serif(emb yes), DAAAAA+Liberation Serif-Italic(emb yes); all embedded true; bold and italic faces present true",
+        "conversion: {\"endConvert\":true,\"percent\":100,\"fileUrlOrigin\":\"http://127.0.0.1:18200\"}"
+      ],
+      "seconds": 7
+    },
+    {
+      "id": "5",
+      "title": "`{token}` text survives an OnlyOffice save and merges with CRM’s docxtemplater options",
+      "parent": "UDOC-1.1 / spike 5",
+      "result": "pass",
+      "evidence": [
+        "tokens merged (including the bold-run token): true; unmerged tokens left: false",
+        "field controls still present after the merge: 6 of 6"
+      ],
+      "seconds": 6
+    },
+    {
+      "id": "7",
+      "title": "Inline locked fields refuse edits, survive save, refill in place, reopen (sdtContentLocked)",
+      "parent": "UDOC-1.1 / spike 7",
+      "result": "pass",
+      "evidence": [
+        "type-over: selection made true; value intact; keystrokes still land true",
+        "backspace-inside-end: selection made true; value intact; keystrokes still land true",
+        "delete-inside-start: selection made true; value intact; keystrokes still land true",
+        "backspace-after-field: selection made true; value intact; keystrokes still land true",
+        "delete-before-field: selection made true; value intact; keystrokes still land true",
+        "select-across-type: selection made true; value intact; keystrokes still land true",
+        "save: tags, locks, values, formatting kept",
+        "refill: 6 controls rewritten; everything outside them byte-identical: true",
+        "reopen: new values shown true; locks in editor sdtContentLocked; rep text kept",
+        "re-save after refill: formatting and locks kept"
+      ],
+      "findings": [],
+      "seconds": 36
+    },
+    {
+      "id": "7cl",
+      "title": "Inline locked fields refuse edits, survive save, refill in place, reopen (contentLocked)",
+      "parent": "UDOC-1.1 / spike 7",
+      "result": "finding",
+      "evidence": [
+        "type-over: selection made true; field removed whole; sentence now \"The total is payable Net 30.\"; keystrokes still land true",
+        "backspace-inside-end: selection made true; value intact; keystrokes still land true",
+        "delete-inside-start: selection made true; value intact; keystrokes still land true",
+        "backspace-after-field: selection made true; field removed whole; sentence now \"The total is payable Net 30.\"; keystrokes still land true",
+        "delete-before-field: selection made true; value intact; keystrokes still land true",
+        "select-across-type: selection made true; field removed whole; sentence now \"This Agreement starts on 2026-11-01 bet\"; keystrokes still land true",
+        "save: tags, locks, values, formatting kept",
+        "refill: 6 controls rewritten; everything outside them byte-identical: true",
+        "reopen: new values shown true; locks in editor contentLocked/sdtContentLocked; rep text kept",
+        "re-save after refill: formatting and locks kept",
+        "FINDING: with contentLocked a rep removes the whole field with ordinary keystrokes (type-over, backspace-after-field, select-across-type); the server sees a missing field row (D16)"
+      ],
+      "findings": [
+        "type-over",
+        "backspace-after-field",
+        "select-across-type"
+      ],
+      "seconds": 37
+    },
+    {
+      "id": "7d",
+      "title": "Deleting a sentence that holds a field (sdtContentLocked)",
+      "parent": "UDOC-1.1 / D11 loose lock",
+      "result": "pass",
+      "evidence": [
+        "paragraph selected true; after Delete: field r5 controls in editor 1; sentence text present true; keystrokes still land true",
+        "saved file field r5 controls: 1",
+        "expected: deletion refused (strict lock, spike 7′)"
+      ],
+      "seconds": 8
+    },
+    {
+      "id": "7dcl",
+      "title": "Deleting a sentence that holds a field (contentLocked)",
+      "parent": "UDOC-1.1 / D11 loose lock",
+      "result": "pass",
+      "evidence": [
+        "paragraph selected true; after Delete: field r5 controls in editor 0; sentence text present false; keystrokes still land true",
+        "saved file field r5 controls: 0",
+        "expected: field removed with its sentence (loose lock, D11)"
+      ],
+      "seconds": 7
+    },
+    {
+      "id": "7p",
+      "title": "Copy-paste duplicates a field (sdtContentLocked)",
+      "parent": "UDOC-1.1 / D11, D16",
+      "result": "pass",
+      "evidence": [
+        "selected \" payable Net 30\"; clipboard formats the editor wrote: text/plain, text/html, text/x-custom; pasted through PasteHtml true",
+        "field:r4 controls in editor after paste 2 (want 2); pasted at end true; original location kept",
+        "saved file field:r4: sdtContentLocked/\"Net 30\", sdtContentLocked/\"Net 30\""
+      ],
+      "seconds": 7
+    },
+    {
+      "id": "7pcl",
+      "title": "Copy-paste duplicates a field (contentLocked)",
+      "parent": "UDOC-1.1 / D11, D16",
+      "result": "pass",
+      "evidence": [
+        "selected \" payable Net 30\"; clipboard formats the editor wrote: text/plain, text/html, text/x-custom; pasted through PasteHtml true",
+        "field:r4 controls in editor after paste 2 (want 2); pasted at end true; original location kept",
+        "saved file field:r4: contentLocked/\"Net 30\", contentLocked/\"Net 30\""
+      ],
+      "seconds": 7
+    },
+    {
+      "id": "7x",
+      "title": "Cut-and-paste moves a field (sdtContentLocked)",
+      "parent": "UDOC-1.1 / D11, D16",
+      "result": "pass",
+      "evidence": [
+        "selected \"starts on 2026-11-01\"; clipboard formats the editor wrote: text/plain, text/html, text/x-custom; pasted through PasteHtml true; cut simulated as copy + Delete",
+        "field:r1 controls in editor after paste 2 (want 2); pasted at end true; original location emptied false (strict lock: deletion refused, so the cut copies)",
+        "saved file field:r1: sdtContentLocked/\"2026-11-01\", sdtContentLocked/\"2026-11-01\""
+      ],
+      "seconds": 8
+    },
+    {
+      "id": "7xcl",
+      "title": "Cut-and-paste moves a field (contentLocked)",
+      "parent": "UDOC-1.1 / D11, D16",
+      "result": "pass",
+      "evidence": [
+        "selected \"starts on 2026-11-01\"; clipboard formats the editor wrote: text/plain, text/html, text/x-custom; pasted through PasteHtml true; cut simulated as copy + Delete",
+        "field:r1 controls in editor after paste 1 (want 1); pasted at end true; original location emptied true",
+        "saved file field:r1: contentLocked/\"2026-11-01\""
+      ],
+      "seconds": 8
+    },
+    {
+      "id": "8",
+      "title": "Block control around a table refills in place and refuses typing",
+      "parent": "UDOC-1.1 / spike 8",
+      "result": "pass",
+      "evidence": [
+        "refill: block rewritten with a 4-row table; outside byte-identical true",
+        "reopen: block shows the new row true; lock sdtContentLocked",
+        "cell text selected true; typing inside the block refused: true; keystrokes still land outside it true"
+      ],
+      "seconds": 10
+    },
+    {
+      "id": "9a",
+      "title": "Plugin opens as a persistent right-side panel while editing continues",
+      "parent": "UDOC-1.1 / spike 9a",
+      "result": "pass",
+      "evidence": [
+        "panel box x=953 w=403 h=667 within editor x=0 w=1400; document area ends at 950 (narrowed beside the panel true): docked right true",
+        "typing in the document with the panel open: true; panel still running after typing: true"
+      ],
+      "seconds": 4
+    },
+    {
+      "id": "9b",
+      "title": "Plugin reads the whole document, paragraph boundaries, and the selection",
+      "parent": "UDOC-1.1 / spike 9b",
+      "result": "pass",
+      "evidence": [
+        "14 paragraphs; field values inline in paragraph text: true; table cells as paragraphs: true",
+        "selection via GetSelectedText: \"between Monolith\"; via GetRangeBySelect: \"between Monolith\""
+      ],
+      "seconds": 3
+    },
+    {
+      "id": "9c",
+      "title": "A suggestion lands as a tracked deletion and insertion with an anchored comment",
+      "parent": "UDOC-1.1 / spike 9c",
+      "result": "pass",
+      "evidence": [
+        "recipe: ok; track changes restored to off: true",
+        "saved file: 2 w:ins, 1 w:del; comment with author Moli: true; anchored range: true"
+      ],
+      "seconds": 4
+    },
+    {
+      "id": "9d",
+      "title": "One callCommand is one undo step; two calls need two undos",
+      "parent": "UDOC-1.1 / spike 9d",
+      "result": "pass",
+      "evidence": [
+        "single command + one undo: original text back true; comments left 0",
+        "two commands: text still present after one undo and gone after two: true"
+      ],
+      "seconds": 6
+    },
+    {
+      "id": "9e",
+      "title": "The plugin calls our backend from our origin under ordinary CORS",
+      "parent": "UDOC-1.1 / spike 9e",
+      "result": "pass",
+      "evidence": [
+        "plugin frame origin: http://127.0.0.1:18201 (ours, not DocumentServer's)",
+        "POST with Access-Control-Allow-Origin: {\"ok\":true,\"status\":200}; without: {\"ok\":false,\"error\":\"TypeError: Failed to fetch\"}",
+        "Origin header the backend saw: http://127.0.0.1:18201"
+      ],
+      "seconds": 2
+    },
+    {
+      "id": "U1",
+      "title": "A plugin inserts a tagged contentLocked field control (modifyContentControl:false)",
+      "parent": "UDOC-1.1 unproven / UDOC-1.5 insertField",
+      "result": "finding",
+      "evidence": [
+        "insert: ok; in editor field:r9 lock contentLocked \"INSERTEDVALUE\"",
+        "typing over it afterwards: field removed whole",
+        "saved file: field:r9 contentLocked \"INSERTEDVALUE\" rPr \"\""
+      ],
+      "seconds": 6
+    },
+    {
+      "id": "U1t",
+      "title": "A plugin inserts a tagged contentLocked field control (modifyContentControl:false, track changes on)",
+      "parent": "UDOC-1.1 unproven / UDOC-1.5 insertField",
+      "result": "finding",
+      "evidence": [
+        "insert: ok; in editor field:r9 lock contentLocked \"INSERTEDVALUE\"",
+        "typing over it afterwards: field removed whole",
+        "saved file: field:r9 contentLocked \"INSERTEDVALUE\" rPr \"\"; tracked insertion markup near the control: true; w:ins count 6"
+      ],
+      "seconds": 7
+    },
+    {
+      "id": "U1d",
+      "title": "A plugin inserts a tagged contentLocked field control (modifyContentControl left at its default)",
+      "parent": "UDOC-1.1 unproven / UDOC-1.5 insertField",
+      "result": "finding",
+      "evidence": [
+        "insert: ok; in editor field:r9 lock contentLocked \"INSERTEDVALUE\"",
+        "typing over it afterwards: field removed whole",
+        "saved file: field:r9 contentLocked \"INSERTEDVALUE\" rPr \"\""
+      ],
+      "seconds": 7
+    },
+    {
+      "id": "U2-U3",
+      "title": "Per-session plugin data reaches the plugin; a consumer page runs inside the panel with two-way postMessage and origin checks",
+      "parent": "UDOC-1.1 unproven / D14",
+      "result": "pass",
+      "evidence": [
+        "U2 plugin data via editorConfig.plugins.options: true (plugin info keys: data, documentCallbackUrl, documentId, documentTitle, editorType, guid, isEmbedMode, isMobileMode, isViewMode, jwt, lang, mmToPx, options, restrictions, theme, type, userId, userName)",
+        "U3 panel page on http://127.0.0.1:18202 loaded: true; panel→plugin hello received: true; plugin→panel ack received: true",
+        "origin checks: messages posted from http://127.0.0.1:18200 into the plugin and the panel were ignored on both sides (plugin +1, panel +2 including one it posted to itself; forged ids accepted: plugin false, panel false); token read from the fragment: true"
+      ],
+      "seconds": 6
+    },
+    {
+      "id": "U4",
+      "title": "getText returns each field control’s span, row id, and kind",
+      "parent": "UDOC-1.1 unproven / UDOC-1.5 getText",
+      "result": "pass",
+      "evidence": [
+        "inline field spans located: 6/6 (field:r2@23-39, field:r1@25-35, field:r2@57-73, field:r3@88-98, field:r4@107-113, field:r5@21-35)",
+        "span text reconstructed from runs equals the paragraph text: true",
+        "block controls (kind block): block:r6"
+      ],
+      "seconds": 2
+    },
+    {
+      "id": "U5",
+      "title": "Callback retry behaviour per consumer answer, what changes between retries, and the forgotten-files store",
+      "parent": "UDOC-1.1 unproven / D13, E6",
+      "result": "record",
+      "evidence": [
+        "configuration read from the image: \"callbackBackoffOptions\": { \"retries\": 3, \"timeout\": { \"factor\": 2, \"minTimeout\": 1000, \"maxTimeout\": 2147483647, \"randomize\": false }, \"httpStatus\": \"429,500-599\" } } }, \"license\": { \"callbackRequestTimeout\": { \"connectionAndInactivity\": \"10m\", \"wholeCycle\": \"10m\" },",
+        "HTTP 500: 4 status-2 attempt(s) at gaps 1.0s, 2.0s, 4.0s; signed fields changing between attempts: changesurl, url; stable: actions, filetype, history, key, lastsave, notmodified, status, users; url query parameters [\"expires\",\"filename\",\"md5\",\"shardkey\"]; token iat/exp [{\"iat\":1792305404,\"exp\":1792305704},{\"iat\":1792305405,\"exp\":1792305705},{\"iat\":1792305407,\"exp\":1792305707},{\"iat\":1792305411,\"exp\":1792305711}]; body token flat; in getForgottenList true; getForgotten URL true",
+        "HTTP 503: 4 status-2 attempt(s) at gaps 1.0s, 2.0s, 4.0s; signed fields changing between attempts: changesurl, url; stable: actions, filetype, history, key, lastsave, notmodified, status, users; url query parameters [\"expires\",\"filename\",\"md5\",\"shardkey\"]; token iat/exp [{\"iat\":1792305443,\"exp\":1792305743},{\"iat\":1792305444,\"exp\":1792305744},{\"iat\":1792305446,\"exp\":1792305746},{\"iat\":1792305450,\"exp\":1792305750}]; body token flat; in getForgottenList true; getForgotten URL true",
+        "HTTP 429: 4 status-2 attempt(s) at gaps 1.0s, 2.0s, 4.0s; signed fields changing between attempts: changesurl, url; stable: actions, filetype, history, key, lastsave, notmodified, status, users; url query parameters [\"expires\",\"filename\",\"md5\",\"shardkey\"]; token iat/exp [{\"iat\":1792305482,\"exp\":1792305782},{\"iat\":1792305483,\"exp\":1792305783},{\"iat\":1792305485,\"exp\":1792305785},{\"iat\":1792305489,\"exp\":1792305789}]; body token flat; in getForgottenList true; getForgotten URL true",
+        "HTTP 200 {\"error\":1}: 1 status-2 attempt(s); signed fields changing between attempts: none; stable: actions, changesurl, filetype, history, key, lastsave, notmodified, status, url, users; url query parameters [\"expires\",\"filename\",\"md5\",\"shardkey\"]; token iat/exp [{\"iat\":1792305520,\"exp\":1792305820}]; body token flat; in getForgottenList true; getForgotten URL true",
+        "HTTP 401: 1 status-2 attempt(s); signed fields changing between attempts: none; stable: actions, changesurl, filetype, history, key, lastsave, notmodified, status, url, users; url query parameters [\"expires\",\"filename\",\"md5\",\"shardkey\"]; token iat/exp [{\"iat\":1792305559,\"exp\":1792305859}]; body token flat; in getForgottenList true; getForgotten URL true",
+        "HTTP 200 {\"error\":0} (control): 1 status-2 attempt(s); signed fields changing between attempts: none; stable: actions, changesurl, filetype, history, key, lastsave, notmodified, status, url, users; url query parameters [\"expires\",\"filename\",\"md5\",\"shardkey\"]; token iat/exp [{\"iat\":1792305598,\"exp\":1792305898}]; body token flat; in getForgottenList false; getForgotten URL false",
+        "status 6 (force-save) with the consumer answering 503: 1 attempt(s); signed fields changing between attempts: none; stable: changesurl, filetype, forcesavetype, history, key, lastsave, status, url, users; a second force-save carries a different lastsave: true",
+        "status 4 (closed without changes) with the consumer answering 503: 1 attempt(s)",
+        "status 1 (connect) with the consumer answering 503: 1 attempt(s); editor still usable true",
+        "F1 assertions: 429/5xx retried 4 times and kept as forgotten true; 401 and {\"error\":1} sent once and kept as forgotten true; acknowledged save not kept true; key, status, lastsave stable across retries true"
+      ],
+      "data": {
+        "http500": {
+          "attempts": 4,
+          "gaps": [
+            "1.0",
+            "2.0",
+            "4.0"
+          ],
+          "changing": [
+            "changesurl",
+            "url"
+          ],
+          "stable": [
+            "actions",
+            "filetype",
+            "history",
+            "key",
+            "lastsave",
+            "notmodified",
+            "status",
+            "users"
+          ],
+          "listed": true,
+          "forgotten": true
+        },
+        "http503": {
+          "attempts": 4,
+          "gaps": [
+            "1.0",
+            "2.0",
+            "4.0"
+          ],
+          "changing": [
+            "changesurl",
+            "url"
+          ],
+          "stable": [
+            "actions",
+            "filetype",
+            "history",
+            "key",
+            "lastsave",
+            "notmodified",
+            "status",
+            "users"
+          ],
+          "listed": true,
+          "forgotten": true
+        },
+        "http429": {
+          "attempts": 4,
+          "gaps": [
+            "1.0",
+            "2.0",
+            "4.0"
+          ],
+          "changing": [
+            "changesurl",
+            "url"
+          ],
+          "stable": [
+            "actions",
+            "filetype",
+            "history",
+            "key",
+            "lastsave",
+            "notmodified",
+            "status",
+            "users"
+          ],
+          "listed": true,
+          "forgotten": true
+        },
+        "error": {
+          "attempts": 1,
+          "gaps": [],
+          "changing": [],
+          "stable": [
+            "actions",
+            "changesurl",
+            "filetype",
+            "history",
+            "key",
+            "lastsave",
+            "notmodified",
+            "status",
+            "url",
+            "users"
+          ],
+          "listed": true,
+          "forgotten": true
+        },
+        "http401": {
+          "attempts": 1,
+          "gaps": [],
+          "changing": [],
+          "stable": [
+            "actions",
+            "changesurl",
+            "filetype",
+            "history",
+            "key",
+            "lastsave",
+            "notmodified",
+            "status",
+            "url",
+            "users"
+          ],
+          "listed": true,
+          "forgotten": true
+        },
+        "ok": {
+          "attempts": 1,
+          "gaps": [],
+          "changing": [],
+          "stable": [
+            "actions",
+            "changesurl",
+            "filetype",
+            "history",
+            "key",
+            "lastsave",
+            "notmodified",
+            "status",
+            "url",
+            "users"
+          ],
+          "listed": false,
+          "forgotten": false
+        },
+        "force503": {
+          "attempts": 1,
+          "changing": [],
+          "lastsaveDistinct": true
+        },
+        "closed503": {
+          "attempts": 1
+        }
+      },
+      "seconds": 305
+    },
+    {
+      "id": "U6",
+      "title": "Connect/disconnect actions on status 1; what distinguishes two connects by one user; statuses 3 and 7",
+      "parent": "UDOC-1.1 unproven / D13",
+      "result": "record",
+      "evidence": [
+        "status-1 callbacks for one user in two tabs: 3; actions and connected users [{\"type\":1,\"userid\":\"u1\"}] users [\"u1\"] | [{\"type\":1,\"userid\":\"u1\"}] users [\"u1\"] | [{\"type\":0,\"userid\":\"u1\"}] users [\"u1\"]",
+        "fields on status 1: actions, key, status, token, users; distinct bodies 3",
+        "final callback: status 4",
+        "statuses 3 and 7 (save errors): NOT MEASURED — they could not be provoked without breaking DocumentServer itself; the consumer guide treats them per OnlyOffice’s callback documentation (no file, report, keep the key open)"
+      ],
+      "seconds": 24
+    },
+    {
+      "id": "U7",
+      "title": "ConvertService output for a document with pending tracked changes and comments",
+      "parent": "UDOC-1.1 unproven / D16 finalize",
+      "result": "record",
+      "evidence": [
+        "PDF shows the inserted text: true; shows the deleted text too: true; shows the comment text: false",
+        "PDF sentence: \"This Agreement starts on 2026-11-01 between Monolithbetween Monolith Inc.\"",
+        "D16 already requires no pending tracked changes or comments at finalize, so the PDF never depends on this rendering"
+      ],
+      "seconds": 5
+    },
+    {
+      "id": "U8",
+      "title": "Command service drop: with edits since the last save (status 2) and without (status 4)",
+      "parent": "UDOC-1.1 unproven / D13 closing sequence",
+      "result": "pass",
+      "evidence": [
+        "with edits: drop answer error 0; terminal callback status 2 after 0.4s; typed text in the final save true; editor page events [[\"appReady\"],[\"documentReady\"]]",
+        "no edits: drop answer error 0; terminal callback status 4 after 0.0s; editor page events [[\"appReady\"],[\"documentReady\"]]"
+      ],
+      "seconds": 11
+    },
+    {
+      "id": "U9",
+      "title": "The built-in AI feature with the bridge plugin registered",
+      "parent": "UDOC-1.1 unproven / D13 profile",
+      "result": "record",
+      "evidence": [
+        "toolbar tabs: File, Home, Insert, Draw, Layout, References, Collaboration, View, Plugins, Header & Footer, Chart design; an AI tab is shown: false",
+        "server default: \"aiSettings\": { \"enable\": true, \"actions\": {}, \"models\": [], \"providers\": {}, \"version\": 3, \"timeout\": \"5m\", \"allowedCorsOrigins\": [\"https://onlyoffice.github.io\", \"https://onlyoffice-plugins.github.io\"], \"allowBrowserProxy\": true, \"pluginSettings\": {} }, \"log\": { \"filePath\": \"\",",
+        "built-in plugins shipped and listed by default (plugin-list-default.json): [ \"highlightcode\", \"mendeley\", \"ocr\", \"photoeditor\", \"speech\", \"speechrecognition\", \"thesaurus\", \"translator\", \"youtube\", \"zotero\" ]1 — translator, youtube, zotero, mendeley, ocr, and speech can send content or requests to third parties; the marketplace can install more",
+        "with customization.plugins:false the bridge plugin still loads: false (that switch also stops our own plugin, so it cannot be used to hide AI; the AI feature is switched off server-side instead: aiSettings.enable)"
+      ],
+      "seconds": 12
+    },
+    {
+      "id": "U10-U11",
+      "title": "Connection statistics without a key; DocumentServer’s own log configuration",
+      "parent": "UDOC-1.1 unproven / EDIT-4, EDIT-6",
+      "result": "record",
+      "evidence": [
+        "GET /info/info.json from outside: HTTP 403 (nginx allows 127.0.0.1 only); from inside the container: keys connectionsStat, licenseInfo, serverInfo, quota; connectionsStat {\"hour\":{\"edit\":{\"min\":0,\"avr\":0,\"max\":0},\"liveview\":{\"min\":0,\"avr\":0,\"max\":0},\"view\":{\"min\":0,\"avr\":0,\"max\":0}},\"day\":{\"edit\":{\"min\":0,\"avr\":0,\"max\":0},\"livevi",
+        "services log4js: { \"appenders\": { \"default\": { \"type\": \"console\", \"layout\": { \"type\": \"patternWithTokens\", \"pattern\": \"[%d] [%p] [%X{TENANT}] [%X{DOCID}] [%X{USERID}]%x{usid} %c - %.10000m\" } } }, \"categories\": { \"default\": { \"appenders\": [ \"default\" ], \"level\": \"WARN\" } } }",
+        "internal nginx: 4:error_log /var/log/nginx/error.log; 40:access_log off; 26:access_log /var/log/onlyoffice/documentserver/nginx.access.log ds_access if=$ds_access_loggable; 27:error_log /var/log/onlyoffice/documentserver/nginx.error.log; 14:map \"$request_method:$status:$uri\" $ds_access_loggable { 32: error_log /dev/null crit; 40: error_log /dev/null crit; log_format ds_access escape=json '{\"timestamp\":\"$time_iso8601\",' '\"client_ip\":\"$remote_addr\",' '\"method\":\"$request_method\",' '\"uri\":\"$uri\",' '\"status\":$status,' '\"bytes_sent\":$bytes_sent,' '\"request_time\":$request_time,' '\"upstream_status\":\"$upstream_status\",' '\"upstream_response_time\":\"$upstream_response_time\"}'; map \"$request_method:$status:$uri\" $ds_access_loggable { ~^(GET|HEAD):[23][0-9][0-9]:/(?:\\Q10.0.0\\E-[^/]+/)?(?:web-apps|sdkjs|sdkjs-plugins|fonts|dictionaries|welcome)(?:/|$) 0; ~^(GET|HEAD):[23][0-9][0-9]:/(?:\\Q10.0.0\\E-[^/]+/)?(?:document_editor_service_worker\\.js|meta/formats|healthcheck/?)$ 0; default 1; }",
+        "sample internal access-log lines (key masked here): {\"timestamp\":\"2026-10-18T06:31:47+00:00\",\"client_ip\":\"172.23.0.1\",\"method\":\"GET\",\"uri\":\"/cache/files/data/<key>/Editor.bin/Editor.bin\",\"status\":200,\"bytes_sent\":1400,\"request_time\":0.000,\"upstream_status\":\"\",\"upstream_response_time\":\"\"} {\"timestamp\":\"2026-10-18T06:31:51+00:00\",\"client_ip\":\"172.23.0.3\",\"method\":\"GET\",\"uri\":\"/cache/files/data/<key>_1140/output.docx/output.docx\",\"status\":200,\"bytes_sent\":26410,\"request_time\":0.000,\"upstream_status\":\"\",\"upstream_response_time\":\"\"}"
+      ],
+      "seconds": 0
+    },
+    {
+      "id": "U14",
+      "title": "Keystrokes typed just before a tab closes",
+      "parent": "UDOC-1.1 observation / D13 closing sequence",
+      "result": "record",
+      "evidence": [
+        "tab closed immediately after typing: terminal status 4; the last words are in the saved file false",
+        "the consumer cannot recover keystrokes the browser never sent; UDOC-3’s closing sequence drops users from the server side, which saves what the server holds"
+      ],
+      "seconds": 4
+    },
+    {
+      "id": "U12",
+      "title": "Request filtering of private addresses (with and without the JWT bypass), download cap, cache retention",
+      "parent": "UDOC-1.1 unproven / UDOC-1.3, EDIT-2.2",
+      "result": "record",
+      "evidence": [
+        "private addresses disallowed, default directIfIn.jwtToken true: document opened true, fetched true; callbacks reaching the private-address consumer 2; conversion succeeded",
+        "control, private addresses disallowed and directIfIn.jwtToken false (override {\"externalRequest\":{\"directIfIn\":{\"jwtToken\":false}}}): document opened false, fetched false; callbacks reaching the private-address consumer 0; conversion refused {\"http\":200,\"error\":-4}",
+        "so the private-address filter is bypassed for URLs inside JWT-signed configs and commands by directIfIn.jwtToken; turning it off makes the filter apply (and would break any intended internal URL, e.g. the legacy http://api:3020 flows, unless those move to allowed hosts)",
+        "defaults: \"request-filtering-agent\": { \"allowPrivateIPAddress\": false, \"allowMetaIPAddress\": false }, \"directIfIn\": { \"allowList\": [], \"jwtToken\": true }, \"action\": { \"maxDownloadBytes\": 104857600, \"files\": 86400, \"filesCron\": \"00 00 */1 * * *\",",
+        "download cap: FileConverter.converter.maxDownloadBytes 104857600 (100 MB). Cache retention: expire.files 86400 s (24 h), cleaned hourly; converted and edited files stay in DocumentServer’s cache until then"
+      ],
+      "seconds": 648
+    },
+    {
+      "id": "U13",
+      "title": "A version DOCX round trip through Word desktop",
+      "parent": "UDOC-1.1 unproven",
+      "result": "blocked",
+      "evidence": [
+        "needs Word desktop on Windows or macOS; altus-labs-dev has neither",
+        "input written: docs/spikes/results/10.0.0.1/word-roundtrip-input.docx. Open it in Word, type outside the fields, save as word-roundtrip-output.docx in the same folder, and re-run the battery (--only U13)",
+        "EDIT-1 stays open on this item unless Josh waives it in writing"
+      ],
+      "seconds": 6
+    }
+  ]
+}

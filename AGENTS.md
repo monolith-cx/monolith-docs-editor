@@ -5,7 +5,7 @@ Standalone AGPL document-editing service built around OnlyOffice DocumentServer 
 ## Stack
 
 - API: Fastify + TypeScript on `3020`
-- Document engine: OnlyOffice DocumentServer `8.3` on `8080`
+- Document engine: OnlyOffice DocumentServer `10.0.0.1` (pinned by digest, EDIT-1.3) on `8080`
 - Storage: Google Cloud Storage via signed URLs
 - Infrastructure: Docker Compose locally, GCE + NGINX + Cloudflare Tunnel for hosted environments
 - Auth: consumer-issued integration credentials today, Platform SSO planned for the standalone app
