@@ -55,8 +55,8 @@
    - **Why a host script.** A container holding the Docker socket would be simpler, but the playbook's hardening baseline refuses it.
 
 5. **Images.**
-   - The API image is built from a committed tree and pushed, tagged with its SHA, to the registry Platform's Forgejo exit decides (FEX-0.4). Artifact Registry `monolith-docs/editor-images` is recommended, which is also the playbook's rule. The Forgejo registry is being retired by 2026-10-31 and is not used. The stand-up waits for that decision.
-   - DocumentServer is pulled from Docker Hub by tag and digest, and changes only through a battery run. This is a **deviation from the playbook's "Artifact Registry only"**; mirroring it is an option at the stand-up.
+   - The API image is built from a committed tree and pushed, tagged with its SHA, to GHCR under the `monolith-cx` org, per Platform's Forgejo exit (owner-approved 2026-10-18: images go to GHCR, Artifact Registry is rejected, the Forgejo registry goes away on 2026-10-31). The exact name, CI, and cutover are the Forgejo exit's editor child (FEX-2.4); the VPS's GHCR login is FEX-3. The stand-up waits for both.
+   - DocumentServer is pulled from Docker Hub by tag and digest, and changes only through a battery run. It is a third-party image outside both the playbook's old rule and GHCR; mirroring it is an option at the stand-up.
    - Deploys are by hand until CI exists (DOC-DPP, and the Forgejo exit's editor child), with `up -d --no-deps editor-api-<env>`. `vps-deploy.sh` runs a plain `up -d`, which would also converge DocumentServer and could recreate it.
 
 6. **One API instance per environment.** The rate, source-read, and conversion limiters are in process.

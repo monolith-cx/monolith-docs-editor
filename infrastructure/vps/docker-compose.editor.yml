@@ -13,9 +13,9 @@
 # EDITOR_ENV=local with any other API_INTERNAL_URL. Only containers on that network resolve it.
 services:
   editor-documentserver-<env>:
-    # The pinned release, by tag and digest (ADR 2026-10-17, E2), from Docker Hub: a recorded deviation
-    # from the playbook's "Artifact Registry only" (ADR 2026-10-18, decision 5). Changed only through a
-    # battery run, by the deployer, never by vps-deploy.sh.
+    # The pinned release, by tag and digest (ADR 2026-10-17, E2), from Docker Hub: a third-party image
+    # outside the box's registry rule (Artifact Registry in the playbook, GHCR after the Forgejo exit;
+    # ADR 2026-10-18, decision 5). Changed only through a battery run, by the deployer, never by vps-deploy.sh.
     image: onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
     # JWT_SECRET only: the same value as the API's ONLYOFFICE_JWT_SECRET.
     env_file: [env/editor-documentserver.env]
@@ -57,8 +57,9 @@ services:
       start_period: 120s
 
   editor-api-<env>:
-    # <registry>: where the Forgejo exit puts editor images (Platform forgejo-exit, FEX-0.4; Artifact
-    # Registry us-west1-docker.pkg.dev/monolith-docs/editor-images is recommended, the playbook's rule).
+    # <registry>: GHCR under the monolith-cx org, per Platform's Forgejo exit (owner-approved
+    # 2026-10-18; Artifact Registry rejected). Its editor child (FEX-2.4) sets the exact name and does
+    # the cutover; the VPS's GHCR login is FEX-3.
     image: <registry>/editor-api:<sha>
     # Secrets and per-environment values (editor-api.env.example lists the names).
     env_file: [env/editor-api.env]

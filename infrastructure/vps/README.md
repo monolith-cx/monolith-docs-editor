@@ -33,21 +33,23 @@ environment's network.
 ## Images
 
 - **The API:** built from this repository's root with `apps/api/Dockerfile` (no private packages:
-  the repository is AGPL and has none), tagged with the commit SHA, and pushed to the registry the
-  Forgejo exit decides (Platform initiative `forgejo-exit`, decision FEX-0.4: Artifact Registry
-  `us-west1-docker.pkg.dev/monolith-docs/editor-images` is recommended, which is also the playbook's
-  rule). The fragment names it `<registry>/editor-api:<sha>`. The stand-up waits for that decision;
-  the Forgejo registry is being retired (deadline 2026-10-31) and is not used. The repository has no
-  CI yet (DOC-DPP, and the editor child of the Forgejo exit), so the build is the deployer's:
+  the repository is AGPL and has none), tagged with the commit SHA, and pushed to GHCR under the
+  `monolith-cx` org, per Platform's Forgejo exit (initiative `forgejo-exit`, owner-approved
+  2026-10-18: images go to GHCR, Artifact Registry is rejected, the Forgejo registry goes away on
+  2026-10-31). Its editor child (FEX-2.4, not yet drafted) sets the exact image name, the CI, and the
+  cutover; the VPS's GHCR login and `vps-deploy.sh`'s allowlist are FEX-3. The fragment names it
+  `<registry>/editor-api:<sha>`, and the stand-up waits for that. Until CI exists, the build is the
+  deployer's:
   ```bash
   docker build -f apps/api/Dockerfile -t <registry>/editor-api:$(git rev-parse --short=12 HEAD) .
   docker push <registry>/editor-api:$(git rev-parse --short=12 HEAD)
   ```
   Build only from a clean, committed tree; the tag is the commit it was built from.
 - **DocumentServer:** the pinned release by tag and digest, from Docker Hub
-  (`onlyoffice/documentserver:10.0.0.1@sha256:ca17…`). **Deviation from the playbook** ("Artifact
-  Registry only"): the digest fixes the bytes, and it changes only through a full battery run (E2,
-  ADR 2026-10-17); mirroring it into Artifact Registry is an option the stand-up may take.
+  (`onlyoffice/documentserver:10.0.0.1@sha256:ca17…`). The playbook still says "Artifact Registry
+  only", which the Forgejo exit replaces with GHCR; either way this is a third-party image pulled by
+  digest. The digest fixes the bytes, and it changes only through a full battery run (E2, ADR
+  2026-10-17); mirroring it into GHCR is an option the stand-up may take.
 - **Deploys are by hand** until CI exists: `vps-deploy.sh` runs `up -d <svc>` without `--no-deps`,
   which could recreate DocumentServer (below).
 

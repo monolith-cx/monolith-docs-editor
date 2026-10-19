@@ -15,7 +15,7 @@
 | EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed | `c7bfa21` |
 | EDIT-3 (UDOC-1.3) | Code-complete 2026-10-18; not deployed | `0f70bf0` |
 | EDIT-5 (UDOC-1.5) | Code-complete 2026-10-18; not deployed | `381d50b` |
-| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18, uncommitted; 6.6–6.7 (the VPS stand-up and acceptance) await Josh's approval step by step | — |
+| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6–6.7 (the VPS stand-up and acceptance) await Josh's approval step by step | `deca209` |
 
 EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
@@ -181,7 +181,7 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
   - Caddy, including its error-log decision;
   - the watchdog's cron line and the `health-check.sh` entry.
 - **Before the first deploy:**
-  - the editor image's registry, which Platform's Forgejo exit decides (FEX-0.4; Artifact Registry `monolith-docs/editor-images` is recommended), and the box's pull access to it;
+  - the editor image in GHCR under `monolith-cx` (Platform's Forgejo exit, owner-approved 2026-10-18; its editor child FEX-2.4 does the cutover) and the VPS's GHCR login (FEX-3);
   - a decision on Caddy's error log for this host (`ERRORS.md`).
 - **Cloudflare (EDIT-4.2):** still blocked.
 - **DeepSeek reviewer:** unavailable until `op` is signed in on this host.
@@ -220,7 +220,7 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 - Committed on `main`, not pushed: `0158323`, `9f54904`, `28a27d9`, `dfbb48e`, `5e5baba`, `c7bfa21` (EDIT-2, with Josh's approval 2026-10-18; Platform `61babd8`).
 - `0f70bf0` (EDIT-3, with Josh's approval 2026-10-18; Platform `eb4b8ab`).
 - `381d50b` (EDIT-5, with Josh's approval 2026-10-18; Platform `5c83e07`).
-- EDIT-6.1–6.5 are uncommitted and await Josh's approval, together with Platform's UDOC doc sync.
+- `deca209` (EDIT-6.1–6.5, with Josh's approval 2026-10-18; Platform `9fc33ff`). After it: the image registry corrected to GHCR (Platform's Forgejo exit, committed as `5edb756` while EDIT-6 was in review), and this line; both uncommitted, awaiting Josh's approval.
 - Older sessions' uncommitted work stays out:
   - `.ai/handoffs/standalone-app.md` and `.ai/iddp/config.json`;
   - the standalone-app plan and its review files;
