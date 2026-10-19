@@ -51,3 +51,18 @@ initiatives:
     path: ".ai/initiatives/archive/monolith-docs"
     blockers:
       - "Original umbrella initiative was split; follow-on work continues in production-hardening and standalone-app."
+
+  - id: github-migration
+    title: "Editor GitHub Migration"
+    abbreviation: EGM
+    lane: active
+    status: in_progress
+    activated_at: "2026-10-19"
+    path: ".ai/initiatives/active/github-migration"
+    parent_ecosystem_initiative: forgejo-exit
+    parent_phase: FEX-3.4
+    deadline: "2026-10-31"
+    blockers:
+      - "Owner's yes before every push (EGM-0.4 first push to the public GitHub repo, and later)."
+      - "FEX-4.1 (short-lived VPS pull in vps-deploy.sh) before EDIT-6.6 can pull the GHCR image."
+    notes: "Drafted 2026-10-19 (owner direction). The Forgejo host goes away 2026-10-31. The 10 local-only commits (EDIT-1 to EDIT-6) were bundled to monolith-cx/forgejo-archive, and Forgejo main (the September CI PR #1) was merged locally as d778652, so the first push is a fast-forward. Phases: EGM-0 first push and cutover into monolith-cx (stays public, AGPL); EGM-1 CI on GitHub Actions and the main ruleset; EGM-2 editor-api image to ghcr.io/monolith-cx (no image ever existed on Forgejo); EGM-3 doc sweep, with ADR 2026-10-18 item 5 superseded. The editor consumes no @monolith-platform packages."
