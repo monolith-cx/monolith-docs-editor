@@ -29,7 +29,7 @@ Rules:
 - API: Fastify + TypeScript on `3020`
 - OnlyOffice DocumentServer: `10.0.0.1` (pinned by digest in `docker-compose.yml`; change only through a battery run, `scripts/editor-battery/`) on `8080`
 - Storage: none held by the service; consumers pass short-lived signed file URLs, which the service fetches on DocumentServer's behalf (the source route), and store saves themselves; `/api/files/` keeps temporary legacy uploads
-- Infrastructure: Docker Compose locally, GCE + NGINX + Cloudflare Tunnel for hosted environments
+- Infrastructure: Docker Compose locally; hosted environments run on the Monolith VPS as compose services behind its Caddy (`infrastructure/vps/`, ADR `docs/adr/2026-10-18-editor-hosting.md`, guidance E9). The GCE + NGINX + Cloudflare Tunnel files stay only for the return-to-GCP plan
 - Auth: consumer-issued integration credentials today, Platform SSO planned for the standalone app surface
 - Runtime: Node.js `24+`, pnpm workspaces, Turbo, TypeScript `6.0.3`
 - Validation: Vitest, ESLint, TypeScript compiler, Docker Compose checks
@@ -66,7 +66,7 @@ docs/
 Core patterns:
 
 - Monolith Docs stays a separate service. Consumer apps integrate over API, not by embedding proprietary code here.
-- OnlyOffice is stateful. Treat GCE-hosted deployment as the default production shape, not Cloud Run.
+- OnlyOffice is stateful. The hosted shape is a long-lived DocumentServer container on the VPS (`editor-documentserver-<env>`, restarted in place by the converter watchdog, recreated only for an update after a drain), not Cloud Run. The API answers on `editor-api` in every deployment (an alias on its own environment's network on the VPS, where the service is `editor-api-<env>`): DocumentServer's `directIfIn` allow-list names `http://editor-api:3020/`, and outside `EDITOR_ENV=local` the API refuses any other `API_INTERNAL_URL`.
 - Files are transient. The service should round-trip documents through signed URLs rather than storing them permanently.
 - Headless integrations must remain isolated from the future standalone app surface.
 - Consumer auth and hostname binding are core security boundaries for headless usage.

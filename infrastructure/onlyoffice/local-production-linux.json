@@ -1,5 +1,18 @@
 {
   "aiSettings": {
     "enable": false
+  },
+  "externalRequest": {
+    "directIfIn": {
+      "allowList": [
+        "http://editor-api:3020/"
+      ],
+      "jwtToken": false
+    }
+  },
+  "FileConverter": {
+    "converter": {
+      "maxprocesscount": 2
+    }
   }
 }

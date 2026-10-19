@@ -1,0 +1,97 @@
+# The editor's services for the VPS compose projects (EDIT-6.5, guidance E9; ADR
+# docs/adr/2026-10-18-editor-hosting.md). This is the fragment the VPSM runbook merges into
+# /srv/monolith/<env>/docker-compose.yml, following Platform's playbooks/vps-runtime.md: pinned
+# images, restart policy, memory limits, env files generated from 1Password (never committed), the
+# environment's own network. Replace <env> (dev, prod), <registry>, and <sha> at deploy time;
+# README.md is the runbook.
+#
+# Names: each service carries the environment (`editor-api-dev`), like every service on the box, so
+# the shared Caddy, which joins both environments' networks, reaches one environment unambiguously
+# (Caddyfile.editor). The API also answers on the alias `editor-api` on its own environment's network:
+# DocumentServer's directIfIn allow-list names http://editor-api:3020/
+# (infrastructure/onlyoffice/local-production-linux.json), and the API refuses to start outside
+# EDITOR_ENV=local with any other API_INTERNAL_URL. Only containers on that network resolve it.
+services:
+  editor-documentserver-<env>:
+    # The pinned release, by tag and digest (ADR 2026-10-17, E2), from Docker Hub: a recorded deviation
+    # from the playbook's "Artifact Registry only" (ADR 2026-10-18, decision 5). Changed only through a
+    # battery run, by the deployer, never by vps-deploy.sh.
+    image: onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
+    # JWT_SECRET only: the same value as the API's ONLYOFFICE_JWT_SECRET.
+    env_file: [env/editor-documentserver.env]
+    environment:
+      JWT_ENABLED: "true"
+      JWT_HEADER: Authorization
+      # Private addresses refused (the image's default, stated): DocumentServer fetches directly only
+      # from the service's internal origin (directIfIn allow-list, EDIT-6.2; battery E6a).
+      ALLOW_PRIVATE_IP_ADDRESS: "false"
+      # No marketplace plugins downloaded or installed at start (ADR F5).
+      PLUGINS_ENABLED: "false"
+    volumes:
+      # AI off (F4), the directIfIn allow-list (F3), two converter processes (F17). Configuration
+      # only; the image is unmodified. A bind-mounted file: edit it in place, then restart; a file
+      # replaced by a new inode is not seen until the container is recreated.
+      - ./editor/onlyoffice/local-production-linux.json:/etc/onlyoffice/documentserver/local-production-linux.json:ro
+      # DocumentServer's on-disk state, named so a recreate (an update) keeps it: the image's declared
+      # volumes. 10.0.0.1 runs no PostgreSQL, RabbitMQ, or Redis of its own (only docservice, converter,
+      # nginx, cron: checked on the pinned image 2026-10-18); what an open editor has not yet saved is
+      # battery E6e's question (ADR 2026-10-18, Capacity and restarts).
+      - editor-documentserver-data:/var/www/onlyoffice/Data
+      - editor-documentserver-lib:/var/lib/onlyoffice
+      # Its logs, rotated by the image's own logrotate (daily, 30 kept, compressed: /etc/logrotate.d/ds.conf).
+      - editor-documentserver-log:/var/log/onlyoffice
+    networks: [monolith-<env>]
+    restart: unless-stopped
+    # Battery E6c (EDIT-6.4): about 370 MiB idle and with six editors open; the rest is headroom for
+    # two converter processes on large files and font generation, which E6c did not measure. See the ADR.
+    mem_limit: 3g
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      # The image's own check: the body must be "true".
+      test: ["CMD-SHELL", "curl -fsS http://localhost/healthcheck | grep -qx true"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  editor-api-<env>:
+    # <registry>: where the Forgejo exit puts editor images (Platform forgejo-exit, FEX-0.4; Artifact
+    # Registry us-west1-docker.pkg.dev/monolith-docs/editor-images is recommended, the playbook's rule).
+    image: <registry>/editor-api:<sha>
+    # Secrets and per-environment values (editor-api.env.example lists the names).
+    env_file: [env/editor-api.env]
+    environment:
+      NODE_ENV: production
+      PORT: "3020"
+      HOST: 0.0.0.0
+      ONLYOFFICE_URL: http://editor-documentserver-<env>
+      API_INTERNAL_URL: http://editor-api:3020
+    depends_on:
+      editor-documentserver-<env>:
+        condition: service_healthy
+    networks:
+      monolith-<env>:
+        aliases: [editor-api]
+    restart: unless-stopped
+    # Above the file ceiling, (EDITOR_SOURCE_CONCURRENCY + EDITOR_CONVERT_CONCURRENCY_TOTAL) x 100 MB
+    # = 800 MB by default (ADR F17), plus the runtime (E6c: 33-38 MiB steady); see the ADR.
+    mem_limit: 1536m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3020/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  editor-documentserver-data:
+  editor-documentserver-lib:
+  editor-documentserver-log:
+
+networks:
+  monolith-<env>:
+    external: true

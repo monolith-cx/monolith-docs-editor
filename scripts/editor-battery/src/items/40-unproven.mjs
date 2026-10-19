@@ -484,7 +484,7 @@ const u10u11 = {
   },
 };
 
-async function privateAddressProbe(context, secrets, work, label) {
+export async function privateAddressProbe(context, secrets, work, label) {
   await resetStub();
   const key = uniqueKey(`u12${label}`);
   let opened = true;
@@ -512,13 +512,17 @@ const u12 = {
     const { writeFile } = await import('node:fs/promises');
     const path = await import('node:path');
     const defaults = await dsExec(image, secrets, `grep -A3 '"request-filtering-agent"' /etc/onlyoffice/documentserver/default.json; grep -A4 '"directIfIn"' /etc/onlyoffice/documentserver/default.json; grep '"maxDownloadBytes"' /etc/onlyoffice/documentserver/default.json; grep -A1 '"files": 86400' /etc/onlyoffice/documentserver/default.json`).catch((e) => String(e));
-    await writeFile(path.join(work, 'ds-local-override.json'), JSON.stringify({ aiSettings: { enable: false }, externalRequest: { directIfIn: { jwtToken: false } } }));
+    // Both runs pin directIfIn explicitly through the override mount: the hardening file sets it to the
+    // service's allow-list since EDIT-6.2, and this item records DocumentServer's own behaviour.
+    const override = (directIfIn) => writeFile(path.join(work, 'ds-local-override.json'), JSON.stringify({ aiSettings: { enable: false }, externalRequest: { directIfIn } }));
     let bypass;
     let control;
     let effective = '';
     try {
-      await restartDs(image, secrets, { BATTERY_ALLOW_PRIVATE_IP: 'false' });
+      await override({ allowList: [], jwtToken: true });
+      await restartDs(image, secrets, { BATTERY_ALLOW_PRIVATE_IP: 'false' }, ['compose.directif.yml']);
       bypass = await privateAddressProbe(context, secrets, work, 'bypass');
+      await override({ allowList: [], jwtToken: false });
       await restartDs(image, secrets, { BATTERY_ALLOW_PRIVATE_IP: 'false' }, ['compose.directif.yml']);
       effective = await dsExec(image, secrets, 'cat /etc/onlyoffice/documentserver/local-production-linux.json').catch((e) => String(e));
       control = await privateAddressProbe(context, secrets, work, 'control');
@@ -531,7 +535,7 @@ const u12 = {
       evidence: [
         `private addresses disallowed, default directIfIn.jwtToken true: ${describe(bypass)}`,
         `control, private addresses disallowed and directIfIn.jwtToken false (override ${squash(effective)}): ${describe(control)}`,
-        `so the private-address filter is bypassed for URLs inside JWT-signed configs and commands by directIfIn.jwtToken; turning it off makes the filter apply (and would break any intended internal URL, e.g. the legacy http://api:3020 flows, unless those move to allowed hosts)`,
+        `so the private-address filter is bypassed for URLs inside JWT-signed configs and commands by directIfIn.jwtToken; turning it off makes the filter apply (and would break any intended internal URL unless it is allow-listed: EDIT-6.2 allow-lists the service's internal origin, http://editor-api:3020/, item E6a)`,
         `defaults: ${squash(defaults)}`,
         'download cap: FileConverter.converter.maxDownloadBytes 104857600 (100 MB). Cache retention: expire.files 86400 s (24 h), cleaned hourly; converted and edited files stay in DocumentServer’s cache until then',
       ],

@@ -27,6 +27,7 @@ import jwt from 'jsonwebtoken';
 import { fetch as undiciFetch } from 'undici';
 import { partsWebStream, readCapped } from './capped-read.js';
 import { config } from './config.js';
+import { PROBE_SAMPLE_ROUTE } from './health-paths.js';
 import type { Consumer } from './consumers.js';
 import { buildKey } from './document-key.js';
 import { onBase } from './docserver.js';
@@ -155,6 +156,57 @@ async function askConverter(body: Record<string, unknown>, signal: AbortSignal):
   }
 }
 
+/** Waits one progress-poll interval, or rejects as a timeout when `signal` aborts first. */
+function pollWait(signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new ConvertError('conversion_timeout', 'poll'));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, POLL_INTERVAL_MS);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+/** A healthy converter turns the sample into a PDF in a second or two; 20 s means it is wedged or starved. */
+export const PROBE_TIMEOUT_MS = 20_000;
+
+/**
+ * The converter probe (EDIT-6.3, ADR F17): converts the built-in sample DOCX to PDF through
+ * DocumentServer, under a fresh key each time (DocumentServer caches results by key), and reports
+ * whether the converter answered within `PROBE_TIMEOUT_MS`. It reads nothing back and keeps nothing; the
+ * PDF stays in DocumentServer's cache until its expiry (24 h, ADR F8), one small file per probe.
+ * `detail` is a fixed code, never a URL or a DocumentServer message.
+ */
+export async function probeConverter(timeoutMs = PROBE_TIMEOUT_MS): Promise<{ ok: boolean; ms: number; detail: string }> {
+  const started = Date.now();
+  const signal = AbortSignal.timeout(timeoutMs);
+  const body = {
+    async: false,
+    filetype: 'docx',
+    outputtype: 'pdf',
+    key: `probe_${randomUUID().replace(/-/g, '')}`,
+    title: 'probe.docx',
+    url: `${config.apiInternalUrl}${PROBE_SAMPLE_ROUTE}`,
+  };
+  const done = (ok: boolean, detail: string) => ({ ok, ms: Date.now() - started, detail });
+  try {
+    let answer = await askConverter(body, signal);
+    while (!(typeof answer.error === 'number' && answer.error !== 0) && !answer.endConvert) {
+      await pollWait(signal);
+      answer = await askConverter(body, signal);
+    }
+    if (typeof answer.error === 'number' && answer.error !== 0) return done(false, `converter_${answer.error}`);
+    if (typeof answer.fileUrl !== 'string') return done(false, 'no_result');
+    return done(true, 'ok');
+  } catch (err) {
+    return done(false, err instanceof ConvertError ? (err.detail ?? err.code) : 'error');
+  }
+}
+
 export async function convertToPdf(req: ConvertRequest, log: Log): Promise<ConvertResult> {
   const { consumer } = req;
   const conversion = randomUUID().replace(/-/g, '');
@@ -194,17 +246,7 @@ export async function convertToPdf(req: ConvertRequest, log: Log): Promise<Conve
     let answer = await askConverter(body, signal);
     while (!(typeof answer.error === 'number' && answer.error !== 0) && !answer.endConvert) {
       // Not finished yet: DocumentServer's progress poll is the same request with the same key.
-      await new Promise<void>((resolve, reject) => {
-        const onAbort = () => {
-          clearTimeout(timer);
-          reject(new ConvertError('conversion_timeout', 'poll'));
-        };
-        const timer = setTimeout(() => {
-          signal.removeEventListener('abort', onAbort);
-          resolve();
-        }, POLL_INTERVAL_MS);
-        signal.addEventListener('abort', onAbort, { once: true });
-      });
+      await pollWait(signal);
       answer = await askConverter(body, signal);
     }
     if (typeof answer.error === 'number' && answer.error !== 0) throw converterError(answer.error, peekSource(conversion));

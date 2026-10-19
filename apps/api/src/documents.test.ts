@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
+import { probeConverter } from './convert.js';
 import { config } from './config.js';
 import { resetConsumers, setConsumersForTest } from './consumers.js';
 import type { Consumer } from './consumers.js';
@@ -264,13 +265,13 @@ describe('POST /api/documents/open — profiles (EDIT-2.3)', () => {
 
 describe('POST /api/documents/open — legacy shape (E1)', () => {
   it("opens fastmail-connect's view-only request (docs-proxy.ts)", async () => {
-    const { res } = await open({ fileUrl: 'http://api:3020/api/files/abc.docx', fileName: 'a.docx', user: { id: 'c1', name: 'Extension User' }, permissions: { edit: false, download: true, print: true } }, 'fm-key');
+    const { res } = await open({ fileUrl: 'http://editor-api:3020/api/files/abc.docx', fileName: 'a.docx', user: { id: 'c1', name: 'Extension User' }, permissions: { edit: false, download: true, print: true } }, 'fm-key');
     expect(res.statusCode).toBe(200);
     expect(res.json<{ key: string }>().key).toMatch(/^fastmail-connect\.legacy-[0-9a-f-]+\.v0$/);
   });
 
   it("opens the Connect extension's editable request without a callback (docs-api.ts)", async () => {
-    const { res } = await open({ fileUrl: 'http://api:3020/api/files/def.docx', fileName: 'b.docx', user: { id: 'extension-user', name: 'Extension User' } }, 'fm-key');
+    const { res } = await open({ fileUrl: 'http://editor-api:3020/api/files/def.docx', fileName: 'b.docx', user: { id: 'extension-user', name: 'Extension User' } }, 'fm-key');
     expect(res.statusCode).toBe(200);
     expect(res.json<{ key: string }>().key).toMatch(/\.e0$/);
   });
@@ -296,7 +297,7 @@ describe('POST /api/documents/open — legacy shape (E1)', () => {
   });
 
   it('accepts an empty legacy fileName and falls back to the URL (as before EDIT-2)', async () => {
-    const { res } = await open({ fileUrl: 'http://api:3020/api/files/abc.docx', fileName: '', user: { id: 'u', name: 'U' } }, 'fm-key');
+    const { res } = await open({ fileUrl: 'http://editor-api:3020/api/files/abc.docx', fileName: '', user: { id: 'u', name: 'U' } }, 'fm-key');
     expect(res.statusCode).toBe(200);
   });
 });
@@ -373,7 +374,7 @@ describe('GET /api/documents/source/:token (EDIT-2.2: the service fetches, pinne
 
   it("hands DocumentServer the service's source URL, never the consumer's, and serves the file", async () => {
     const { app, url } = await documentUrlOf(documentOpen({ fileUrl: fileUrl('contract.docx') }));
-    expect(url.startsWith('http://api:3020/api/documents/source/')).toBe(true);
+    expect(url.startsWith('http://editor-api:3020/api/documents/source/')).toBe(true);
     expect(url).not.toContain('127.0.0.1');
     const got = await app.inject({ method: 'GET', url: new URL(url).pathname });
     expect(got.statusCode).toBe(200);
@@ -382,8 +383,8 @@ describe('GET /api/documents/source/:token (EDIT-2.2: the service fetches, pinne
   });
 
   it('hands a legacy internal /api/files/ URL over as it is', async () => {
-    const { url } = await documentUrlOf({ fileUrl: 'http://api:3020/api/files/abc.docx', user: { id: 'u', name: 'U' } }, 'fm-key');
-    expect(url).toBe('http://api:3020/api/files/abc.docx');
+    const { url } = await documentUrlOf({ fileUrl: 'http://editor-api:3020/api/files/abc.docx', user: { id: 'u', name: 'U' } }, 'fm-key');
+    expect(url).toBe('http://editor-api:3020/api/files/abc.docx');
   });
 
   it('refuses an editor token, a tampered token, and a host the consumer no longer registers', async () => {
@@ -750,6 +751,61 @@ describe('drop and forgotten files (EDIT-2.5)', () => {
   });
 });
 
+describe('the converter probe (EDIT-6.3, ADR F17)', () => {
+  it('converts the built-in sample through DocumentServer from the internal origin, under a fresh key each time', async () => {
+    const app = buildApp();
+    converterApp = app;
+    converterBodies = [];
+    const first = await app.inject({ method: 'GET', url: '/health/converter' });
+    const second = await app.inject({ method: 'GET', url: '/health/converter' });
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toMatchObject({ status: 'ok' });
+    expect(second.statusCode).toBe(200);
+    expect(converterBodies).toHaveLength(2);
+    expect(converterBodies[0]).toMatchObject({ filetype: 'docx', outputtype: 'pdf', url: 'http://editor-api:3020/health/converter-sample.docx', authorized: true });
+    expect(converterBodies[0]?.['key']).not.toBe(converterBodies[1]?.['key']);
+    // The sample is a real DOCX (a ZIP), served to anyone who asks: nothing in it is secret.
+    const sample = await app.inject({ method: 'GET', url: '/health/converter-sample.docx' });
+    expect(sample.statusCode).toBe(200);
+    expect(sample.rawPayload.subarray(0, 2).toString('latin1')).toBe('PK');
+  });
+
+  it('answers 503 with a fixed code when the converter refuses or never finishes', async () => {
+    const app = buildApp();
+    converterApp = app;
+    converterAnswer = async () => ({ error: -4 });
+    const refused = await app.inject({ method: 'GET', url: '/health/converter' });
+    expect(refused.statusCode).toBe(503);
+    expect(refused.json()).toMatchObject({ status: 'unhealthy', detail: 'converter_-4' });
+    converterAnswer = async () => ({ endConvert: false, percent: 0 });
+    const stuck = await probeConverter(1500);
+    expect(stuck.ok).toBe(false);
+    expect(['poll', 'converter_unreachable', 'converter_answer']).toContain(stuck.detail);
+    converterAnswer = () => new Promise((r) => setTimeout(() => r({ endConvert: true }), 3000));
+    const silent = await probeConverter(500);
+    expect(silent).toMatchObject({ ok: false });
+    expect(['poll', 'converter_unreachable', 'converter_answer']).toContain(silent.detail);
+  });
+
+  it('answers only a direct loopback caller, whatever a forwarded header says, and one probe at a time', async () => {
+    const app = buildApp();
+    converterApp = app;
+    converterBodies = [];
+    const outside = await app.inject({ method: 'GET', url: '/health/converter', remoteAddress: '203.0.113.9', headers: { 'x-forwarded-for': '127.0.0.1' } });
+    expect(outside.statusCode).toBe(404);
+    const mappedOutside = await app.inject({ method: 'GET', url: '/health/converter', remoteAddress: '::ffff:10.0.0.7' });
+    expect(mappedOutside.statusCode).toBe(404);
+    expect(converterBodies).toHaveLength(0);
+    // Loopback in its IPv4-mapped form is still loopback.
+    const mappedLoopback = await app.inject({ method: 'GET', url: '/health/converter', remoteAddress: '::ffff:127.0.0.1' });
+    expect(mappedLoopback.statusCode).toBe(200);
+    converterBodies = [];
+    converterAnswer = () => new Promise((r) => setTimeout(() => r({ endConvert: true, fileUrl: 'http://127.0.0.1:18999/cache/files/p.pdf' }), 300));
+    const [a, b] = await Promise.all([app.inject({ method: 'GET', url: '/health/converter' }), app.inject({ method: 'GET', url: '/health/converter' })]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 429]);
+  });
+});
+
 describe('POST /api/documents/convert (EDIT-3)', () => {
   const at = (p: string) => `http://127.0.0.1:${filePort}${p}`;
   async function convert(body: Record<string, unknown>, key = 'crm-key') {
@@ -765,7 +821,7 @@ describe('POST /api/documents/convert (EDIT-3)', () => {
     expect(res.json()).toEqual({ size: PDF_BYTES.length, sha256: createHash('sha256').update(PDF_BYTES).digest('hex') });
     const sent = converterBodies[0];
     expect(sent).toMatchObject({ async: false, filetype: 'docx', outputtype: 'pdf', authorized: true });
-    expect(String(sent?.['url']).startsWith('http://api:3020/api/documents/source/')).toBe(true);
+    expect(String(sent?.['url']).startsWith('http://editor-api:3020/api/documents/source/')).toBe(true);
     expect(String(sent?.['url'])).not.toContain('127.0.0.1');
     expect(String(sent?.['key'])).toMatch(/^crm\.convert_[0-9a-f]{32}\.v0$/);
     expect(uploads).toHaveLength(1);

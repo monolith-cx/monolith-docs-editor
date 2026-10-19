@@ -26,7 +26,7 @@ export function newSecrets() {
   };
 }
 
-function composeEnv(image, secrets, extra = {}) {
+export function composeEnv(image, secrets, extra = {}) {
   return {
     ...process.env,
     BATTERY_DS_IMAGE: image,
@@ -91,6 +91,22 @@ export async function dsExec(image, secrets, command) {
   const { stdout } = await compose(['exec', '-T', 'ds', 'sh', '-c', command], composeEnv(image, secrets), 120_000);
   return stdout;
 }
+
+/** Restarts DocumentServer's container in place, as the converter watchdog does (EDIT-6.3), and waits for it. */
+export async function restartDsInPlace(image, secrets) {
+  await compose(['restart', 'ds'], composeEnv(image, secrets), 300_000);
+  await compose(['up', '-d', '--wait', '--wait-timeout', '420', 'ds'], composeEnv(image, secrets), 600_000);
+  await waitDsSettled(image, secrets);
+}
+
+/** Runs a shell command in any service of the stack (EDIT-6: the API's converter probe). */
+export async function serviceExec(image, secrets, service, command) {
+  const { stdout } = await compose(['exec', '-T', service, 'sh', '-c', command], composeEnv(image, secrets), 120_000);
+  return stdout;
+}
+
+/** The compose command line for this stack, as a host script would run it (EDIT-6.3's watchdog). */
+export const COMPOSE_COMMAND = `docker compose -f ${path.join(BATTERY_DIR, 'compose.yml')}`;
 
 export async function dsLogs(image, secrets) {
   const { stdout } = await compose(['logs', '--no-color', 'ds'], composeEnv(image, secrets), 120_000);

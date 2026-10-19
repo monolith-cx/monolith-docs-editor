@@ -12,7 +12,7 @@ import { STUB_INTERNAL, events, resetStub, stub } from '../stack.mjs';
 const exec = promisify(execFile);
 const API = 'http://127.0.0.1:18204';
 
-async function convertViaApi(secrets, body) {
+export async function convertViaApi(secrets, body) {
   const t0 = Date.now();
   const res = await fetch(`${API}/api/documents/convert`, {
     method: 'POST',

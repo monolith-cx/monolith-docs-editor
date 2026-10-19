@@ -14,7 +14,7 @@ export default defineConfig({
       ONLYOFFICE_URL: 'http://127.0.0.1:18999',
       ONLYOFFICE_PUBLIC_URL: 'http://ds-public.test',
       API_PUBLIC_URL: 'http://editor.test',
-      API_INTERNAL_URL: 'http://api:3020',
+      API_INTERNAL_URL: 'http://editor-api:3020',
       EDITOR_NOTIFY_SECRET_TEST: 'test-notify-secret-current-0123456789',
       EDITOR_NOTIFY_SECRET_TEST_PREVIOUS: 'test-notify-secret-previous-0123456789',
       EDITOR_NOTIFY_TIMEOUT_MS: '1500',

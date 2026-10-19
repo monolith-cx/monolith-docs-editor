@@ -129,7 +129,7 @@ const s2 = {
       ['Connect extension (default permissions, no callback)', (fileUrl) => ({ fileUrl, fileName: 'b.docx', user: { id: 'extension-user', name: 'Extension User' } }), true],
     ]) {
       const fileUrl = await uploadViaApi(secrets, 'contract-cl.docx');
-      const internal = fileUrl.startsWith('http://api:3020/api/files/');
+      const internal = fileUrl.startsWith('http://editor-api:3020/api/files/');
       const opened = await openViaApi(secrets, bodyFor(fileUrl), true);
       if (opened.status !== 200) {
         ok = false;

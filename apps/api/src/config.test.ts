@@ -81,6 +81,16 @@ describe('config (E4)', () => {
     expect(trustProxyProblem('::/31')).toMatch(/broader than \/32/);
   });
 
+  it("requires the internal URL DocumentServer's allow-list names, outside local (EDIT-6.2)", () => {
+    expect(loadConfig({}).apiInternalUrl).toBe('http://editor-api:3020');
+    expect(configProblems(loadConfig({ ...strong }), undefined).join(' ')).not.toContain('API_INTERNAL_URL');
+    // Exactly: a trailing slash or a path would make every internal URL `//api/...` or `/x/api/...`.
+    for (const other of ['http://api:3020', 'http://editor-api:3021', 'https://editor-api:3020', 'http://editor-api.internal:3020', 'http://editor-api:3020/', 'http://editor-api:3020/x']) {
+      expect(configProblems(loadConfig({ ...strong, API_INTERNAL_URL: other }), undefined).join(' ')).toContain('API_INTERNAL_URL must be http://editor-api:3020');
+    }
+    expect(configProblems(loadConfig({ EDITOR_ENV: 'local', API_INTERNAL_URL: 'http://api:3020' }), undefined).join(' ')).not.toContain('API_INTERNAL_URL');
+  });
+
   it('caps the session lifetime at 12 hours and defaults the callback URL origins to DocumentServer', () => {
     const cfg = loadConfig({ EDITOR_MAX_SESSION_MS: String(48 * 3600_000), ONLYOFFICE_URL: 'http://onlyoffice:80', ONLYOFFICE_PUBLIC_URL: 'https://app.example.com' });
     expect(cfg.maxSessionMs).toBe(12 * 3600_000);

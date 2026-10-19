@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "release": "10.0.0.1",
+    "date": "2026-10-19",
+    "image": "onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3",
+    "started": "2026-10-19T00:22:55.189Z",
+    "finished": "2026-10-19T00:27:46.363Z",
+    "host": "altus-labs-dev",
+    "only": "E6c",
+    "dsSettleSeconds": 209,
+    "totals": {
+      "record": 1
+    }
+  },
+  "results": [
+    {
+      "id": "E6c",
+      "title": "Capacity on the pinned release: DocumentServer's and the API's memory idle, with 1, 3, and 6 editors open, and during conversions; the connection statistics and limits it reports",
+      "parent": "EDIT-6.4 / UDOC-1.6",
+      "result": "record",
+      "evidence": [
+        "conversions during the peak: 200, 200, 429, 429",
+        "memory (MiB, docker stats): idle: DocumentServer 364, API 33; 1 editor(s) open: DocumentServer 366, API 36; 3 editor(s) open: DocumentServer 366, API 36; 6 editor(s) open: DocumentServer 368, API 37; 6 editors open + 4 conversions (peak): DocumentServer 368, API 38",
+        "DocumentServer per additional open editor: about 0 MiB",
+        "info.json with 6 editors open: connectionsStat {\"hour\":{\"edit\":{\"min\":0,\"avr\":0,\"max\":0},\"liveview\":{\"min\":0,\"avr\":0,\"max\":0},\"view\":{\"min\":0,\"avr\":0,\"max\":0}},\"day\":{\"edit\":{\"min\":0,\"avr\":0,\"max\":0},\"liveview\":{\"min\":0,\"avr\":0,\"max\":0},\"view\":{\"min\":0,\"avr\":0,\"max\":0}},\"week\":{\"edit\":{\"min\":0,\"avr\":0,\"max\":0},\"liveview\":{\"min\":0,\"avr\":0,\"max\":0},\"view\":{\"min\":0,\"avr\":0,\"max\":0}},\"month\":{\"edit\":{\"min\":0,\"avr\":0,\"max\":0},\"liveview\":{\"min\":0,\"a; licenseInfo {\"count\":1,\"type\":3,\"packageType\":0,\"mode\":0,\"branding\":false,\"connections\":2147483647,\"connectionsView\":2147483647,\"customization\":false,\"advancedApi\":false,\"usersCount\":0,\"usersViewCount\":0,\"usersExpire\":86400,\"hasLicense\":false,\"buildDate\":\"2026-10-11T00:00:00.000Z\",\"startDate\":\"2026-10-01T00:00:00.000Z\",\"endDate\":null,\"customerId\":\"\",\"alias\":\"\",\"multitenancy\":false}; quota {\"edit\":{\"connectionsCount\":6,\"usersCount\":{\"unique\":0,\"anonymous\":0}},\"view\":{\"connectionsCount\":0,\"usersCount\":{\"unique\":0,\"anonymous\":0}},\"byMonth\":[]}"
+      ],
+      "seconds": 59
+    }
+  ]
+}

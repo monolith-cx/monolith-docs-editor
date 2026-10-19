@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "release": "10.0.0.1",
+    "date": "2026-10-19",
+    "image": "onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3",
+    "started": "2026-10-19T00:28:40.103Z",
+    "finished": "2026-10-19T00:37:36.958Z",
+    "host": "altus-labs-dev",
+    "only": "E6b",
+    "dsSettleSeconds": 192,
+    "totals": {
+      "pass": 1
+    }
+  },
+  "results": [
+    {
+      "id": "E6b",
+      "title": "The converter watchdog: with both converter slots wedged the probe fails; after two failures the watchdog waits while an editor is open, restarts DocumentServer once none is, and the probe passes again; the probe answers only loopback",
+      "parent": "EDIT-6.3 / UDOC-1.6 (ADR F17, F15)",
+      "result": "pass",
+      "evidence": [
+        "probe before: 200 {\"status\":\"ok\",\"ms\":1043}; from the host through the published port: 404 (loopback only); the sample: 200 1277 bytes",
+        "wedged 2 converter slot(s) with ADR F17's dropped source; probe then: 503 {\"status\":\"unhealthy\",\"ms\":20001,\"detail\":\"converter_unreachable\"}",
+        "watchdog run 1: exit 1: 2026-10-19T00:32:58Z editor-converter-watch converter probe failed (1 of 2 before acting)",
+        "watchdog run 2, with the editor still open (open 200, page loaded): exit 1: 2026-10-19T00:33:19Z editor-converter-watch converter wedged (2 failed probes); waiting for open editors to close (open: 1, waited 0m of 15m)",
+        "watchdog run 3, after it closed: exit 4: 2026-10-19T00:33:49Z editor-converter-watch converter wedged (3 failed probes); restarting ds (open editors: 0, waited 0m) 2026-10-19T00:37:24Z editor-converter-watch restarted ds; converter probe ok",
+        "probe after: 200 {\"status\":\"ok\",\"ms\":1005}"
+      ],
+      "seconds": 322
+    }
+  ]
+}

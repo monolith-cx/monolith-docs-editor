@@ -72,6 +72,13 @@ export interface Config {
 }
 
 const ENVS: readonly EditorEnv[] = ['local', 'dev', 'staging', 'production'];
+/**
+ * The service's internal origin, the one origin DocumentServer fetches from directly (its
+ * `externalRequest.directIfIn.allowList` in `infrastructure/onlyoffice/local-production-linux.json`,
+ * EDIT-6.2): the source route, legacy uploads, and callbacks. Every deployment names the API
+ * `editor-api` (the VPS service; a network alias elsewhere), so the allow-list is one fixed value.
+ */
+export const DOCUMENTSERVER_DIRECT_ORIGIN = 'http://editor-api:3020';
 const WEAK_SECRETS = new Set(['secret', 'change-me-dev', 'change-me-prod', 'dev-only-secret-do-not-use-in-prod']);
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 /** DocumentServer's own default `maxDownloadBytes`. */
@@ -160,7 +167,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
       : [originOf(onlyofficeUrl), originOf(onlyofficePublicUrl)].filter((o): o is string => Boolean(o)),
 
     apiPublicUrl: env['API_PUBLIC_URL'] ?? 'http://localhost:3020',
-    apiInternalUrl: env['API_INTERNAL_URL'] ?? 'http://api:3020',
+    apiInternalUrl: env['API_INTERNAL_URL'] ?? DOCUMENTSERVER_DIRECT_ORIGIN,
 
     corsOrigins: parseCorsOrigins(env['CORS_ORIGINS']),
     rateLimitMax: Number(env['RATE_LIMIT_MAX'] ?? 100),
@@ -234,6 +241,13 @@ export function configProblems(cfg: Config, rawEditorEnv: string | undefined): s
   if (cfg.convertConcurrency > cfg.convertConcurrencyTotal) problems.push('EDITOR_CONVERT_CONCURRENCY must not exceed EDITOR_CONVERT_CONCURRENCY_TOTAL');
   if (cfg.notifyTimeoutMs >= 600_000) problems.push("EDITOR_NOTIFY_TIMEOUT_MS must stay below DocumentServer's 10-minute callback timeout");
   if (!cfg.strict) return problems;
+
+  // DocumentServer fetches directly only from its allow-listed origin; any other internal URL would
+  // fail every open and conversion behind its private-address filter. Exactly this value: every
+  // internal URL is built as `${apiInternalUrl}/api/...`, so a trailing slash or a path breaks them all.
+  if (cfg.apiInternalUrl !== DOCUMENTSERVER_DIRECT_ORIGIN) {
+    problems.push(`API_INTERNAL_URL must be ${DOCUMENTSERVER_DIRECT_ORIGIN} (DocumentServer's directIfIn allow-list, infrastructure/onlyoffice/local-production-linux.json)`);
+  }
 
   const jwt = cfg.onlyofficeJwtSecret;
   if (WEAK_SECRETS.has(jwt) || jwt.startsWith('change-me') || Buffer.byteLength(jwt) < 32) {

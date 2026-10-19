@@ -3,7 +3,7 @@
 **Initiative ID:** udoc-editor-service
 **Abbreviation:** EDIT
 **Owner:** josh
-**Status:** Active — drafted 2026-10-16; plan review attempt 1 **FAIL** (3 High, 12 Medium, 8 Nit), attempt 2 **PASS-WITH-NITS** (9 Medium, 7 Nit; `reviews/review-plan-attempt-{1,2}.md`), every finding applied the same day; **owner-approved 2026-10-16** with parent amendments A1–A5; moved to `active/`. EDIT-4 code-complete and checkpoint-reviewed 2026-10-16 (`reviews/review-edit-4-attempt-{1,2,3}.md`: FAIL, PASS-WITH-NITS, PASS-WITH-NITS; every finding applied), not deployed. EDIT-1 done 2026-10-18 (committed `dfbb48e`; review attempt 2 PASS-WITH-NITS, applied; U13 waived by Josh). EDIT-2 code-complete 2026-10-18 (two reviewers, Sonnet and Codex substituting for DeepSeek: attempts 1 and 2 FAIL, attempt 3 PASS-WITH-NITS from both, every finding applied, attempt-4 verification PASS-WITH-NITS, nits applied; `reviews/review-edit-2-*.md`), not deployed. EDIT-3 code-complete 2026-10-18 (Sonnet + Codex: attempt 1 PASS-WITH-NITS and FAIL, attempt 2 PASS-WITH-NITS and FAIL, attempt 3 PASS-WITH-NITS and PASS, every finding applied; `reviews/review-edit-3-*.md`; ADR F17 found and mitigated), not deployed. EDIT-5 code-complete 2026-10-18 (Sonnet + Codex: attempts 1 and 2 FAIL from both, attempt 3 PASS-WITH-NITS from both, every finding applied; `reviews/review-edit-5-*.md`; ADR F18), not deployed. Next: EDIT-6.
+**Status:** Active — drafted 2026-10-16; plan review attempt 1 **FAIL** (3 High, 12 Medium, 8 Nit), attempt 2 **PASS-WITH-NITS** (9 Medium, 7 Nit; `reviews/review-plan-attempt-{1,2}.md`), every finding applied the same day; **owner-approved 2026-10-16** with parent amendments A1–A5; moved to `active/`. EDIT-4 code-complete and checkpoint-reviewed 2026-10-16 (`reviews/review-edit-4-attempt-{1,2,3}.md`: FAIL, PASS-WITH-NITS, PASS-WITH-NITS; every finding applied), not deployed. EDIT-1 done 2026-10-18 (committed `dfbb48e`; review attempt 2 PASS-WITH-NITS, applied; U13 waived by Josh). EDIT-2 code-complete 2026-10-18 (two reviewers, Sonnet and Codex substituting for DeepSeek: attempts 1 and 2 FAIL, attempt 3 PASS-WITH-NITS from both, every finding applied, attempt-4 verification PASS-WITH-NITS, nits applied; `reviews/review-edit-2-*.md`), not deployed. EDIT-3 code-complete 2026-10-18 (Sonnet + Codex: attempt 1 PASS-WITH-NITS and FAIL, attempt 2 PASS-WITH-NITS and FAIL, attempt 3 PASS-WITH-NITS and PASS, every finding applied; `reviews/review-edit-3-*.md`; ADR F17 found and mitigated), not deployed. EDIT-5 code-complete 2026-10-18 (Sonnet + Codex: attempts 1 and 2 FAIL from both, attempt 3 PASS-WITH-NITS from both, every finding applied; `reviews/review-edit-5-*.md`; ADR F18), not deployed. EDIT-6: hosting decided by Josh 2026-10-18 (E9, the VPS); 6.1–6.5 code-complete (Sonnet: attempt 1 PASS-WITH-NITS, every finding applied; attempt 2 PASS-WITH-NITS (2 Low, 9 nits, all applied); ADR `2026-10-18-editor-hosting.md`); next: EDIT-6.6, the stand-up, with Josh's approval per step.
 **Last updated:** 2026-10-18
 **Guidance:** [guidance.md](./guidance.md)
 **Parent ecosystem initiative:** `unified-document-authoring` (UDOC), phase UDOC-1 — `~/dev/monolith-platform/.ai/ecosystem/initiatives/active/unified-document-authoring/plan.md`
@@ -23,7 +23,7 @@ Estimates are engineering weeks for one senior developer working with Claude.
 | EDIT-2 | UDOC-1.2 | Profiles, stateless sessions, signed notifications, drop, the editor page | **Code-complete 2026-10-18**: 192 API tests; battery records `2026-10-18-0834` (full, 0 fail) and `-partial-0907`/`-0929`/`-0940` (service items; `-0940` on the final code; all pass); review attempt 3 PASS-WITH-NITS from Sonnet and Codex, every finding applied, attempt-4 verification PASS-WITH-NITS, nits applied. Not deployed (no environment; dev secrets deferred to the EDIT-6 stand-up); `standalone-app` Phase 0 closes or is re-baselined before it deploys. New: ADR F16 | EDIT-1 (pinned release, measured retry behaviour), EDIT-4; UDOC-2.1 drafted alongside; `standalone-app` Phase 0 closed or re-baselined before EDIT-2 deploys |
 | EDIT-3 | UDOC-1.3 | PDF conversion | **Code-complete 2026-10-18**: `POST /api/documents/convert` through the source route and a pinned upload; 220 API tests; battery `2026-10-18-partial-2002` (all service items, 10 pass); review attempt 3 PASS (Codex) and PASS-WITH-NITS (Sonnet), every finding applied. Found ADR F17 (DocumentServer's one converter wedges on a partial or slow source download); the source route now reads every source whole. Not deployed | EDIT-1, EDIT-2 (consumer registry, URL validator) |
 | EDIT-5 | UDOC-1.5 | The panel bridge plugin | **Code-complete 2026-10-18**: `apps/plugin/` (plain JavaScript, `// @ts-check`, no build step: a recorded deviation from E7) served by the API from `/plugins/udoc-bridge/`; protocol 1 with six operations; 230 API tests, 38 plugin tests; battery `2026-10-18-partial-2242` (service and bridge items) plus `-partial-2302` (E5a–E5c) and `-partial-2312` (E5b on the final code), all pass; review attempt 3 PASS-WITH-NITS from Sonnet and Codex, every finding applied. Found: ADR F18 (the plugin page's CSP needs). F16's open question (can the plugin withdraw "Remove content control") was not probed and stays open. Not deployed | EDIT-1 (unproven items answered), EDIT-2 (profiles, plugin data) |
-| EDIT-6 | UDOC-1.6 | Hosting and capacity | Pending | EDIT-2, EDIT-3, EDIT-5; a hosted path from DOC-DPP or the proven GCE path |
+| EDIT-6 | UDOC-1.6 | Hosting and capacity | **In progress**: hosting decided by Josh 2026-10-18 (E9: the OVH VPS, `monolith-dev`, `editor-dev.monolith.cx`). 6.1–6.5 (the local half) code-complete 2026-10-18: DocumentServer's settings (directIfIn allow-list, two converter processes), the converter probe and host watchdog, capacity, and `infrastructure/vps/`; 234 API tests; battery `2026-10-19-partial-0057` (E6a, E6b, E6d pass; E6e recorded) and `-0022` (E6c); review attempt 1 PASS-WITH-NITS (every finding applied), attempt 2 PASS-WITH-NITS (2 Low, 9 nits, all applied). New: ADR `2026-10-18-editor-hosting.md`. 6.6–6.7 (the stand-up and acceptance) await Josh's approval | EDIT-2, EDIT-3, EDIT-5; a hosted path from DOC-DPP or the proven GCE path |
 | EDIT-7 | UDOC-1.7 | Licence posture (owner decision) | Pending | none; recorded before close-out |
 | Close-out | — | Phase close-out and parent sync | Pending | all |
 
@@ -305,24 +305,83 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 
 **Goal:** the editor runs where CRM's dev environment can reach it and be reached by it, sized and documented.
 
-### EDIT-6.1 Hosting choice
-- **Found 2026-10-17: no editor host exists in any environment** (decommissioned 2026-06-12; public hosts answer 530 or time out). EDIT-6 is therefore a from-scratch stand-up, not a check, and it is the first deploy of everything EDIT ships (EDIT-4 onward); the `deploy-edit-4.md` runbook's steps 1–3 and DOC-DPP's revised Phase 4 apply.
-- Read DOC-DPP's status first. Choose per environment (dev at minimum) between the proven GCE + Cloudflare Tunnel path and DOC-DPP's target, and record it in an ADR. One API instance per environment (the conversion limiter is in-process).
+### EDIT-6.1 Hosting choice (decided: guidance E9)
+- **Found 2026-10-17: no editor host exists in any environment** (decommissioned 2026-06-12; public hosts answer 530 or time out). EDIT-6 is a from-scratch stand-up and the first deploy of everything EDIT ships (EDIT-4 onward).
+- **Decided by Josh 2026-10-18 (E9):** the OVH VPS, in the `monolith-dev` compose project, at `editor-dev.monolith.cx` behind the shared Caddy. GCP compute was exited on 2026-07-25 (VPSM), so the plan's earlier choice between GCE + Cloudflare Tunnel and DOC-DPP's target is moot; DOC-DPP's working-tree Phase 4 (another session's, uncommitted) still describes GCE and needs reconciling by its owner (handoff follow-up).
+- Record the decision, the routing, and the operating rules in an ADR: `docs/adr/2026-10-18-editor-hosting.md`. One API instance per environment (the conversion, source-read, and rate limiters are in-process).
+- Status: Done 2026-10-18. ADR `docs/adr/2026-10-18-editor-hosting.md`.
 
-- **Startup (ADR F15):** a new DocumentServer container restarts its own services about 2 minutes after it reports healthy, once background font generation finishes, dropping any editor already open. Deploys therefore wait for font generation to finish before routing users (or prebuild the fonts), and the drain-and-deploy procedure includes that wait.
-- **The converter (ADR F17), added at EDIT-3:** DocumentServer's converter is one slot (`maxprocesscount: 1`) shared by conversions and editor opens. Raise `maxprocesscount` through configuration for the host's cores, and add a health check that converts a small file through `/converter` and restarts DocumentServer (after open editors drain) when it does not answer; the service's read-whole source route prevents the known triggers, the check covers unknown ones. Size the host's memory for the service's file ceiling, (`EDITOR_SOURCE_CONCURRENCY` + `EDITOR_CONVERT_CONCURRENCY_TOTAL`) × 100 MB (800 MB by default), and set a container memory limit above it. Also: `directIfIn.jwtToken=false` with an allow-list as defence in depth (ADR F3), and the in-process limiters (rate, conversions, source reads) before running more than one API instance.
+### EDIT-6.2 DocumentServer settings (ADR F3, F17)
+- `FileConverter.converter.maxprocesscount` raised from 1 to 2, chosen for resilience (one wedged slot no longer stops everything), not measured.
+- `externalRequest.directIfIn`: `jwtToken: false` with `allowList: ["http://editor-api:3020/"]`, so DocumentServer fetches directly only from the service's internal origin (the source route, legacy uploads, callbacks) and its private-address filter applies to everything else (defence in depth for F3). The API answers on `editor-api` in every deployment: a network alias on the VPS (the service is `editor-api-<env>`), in the root compose file, and in the battery.
+- Acceptance: a battery item with DocumentServer's private addresses refused (the VPS setting) opens, edits, and saves a document through the service, converts a document, and opens a legacy upload, while a signed config naming a private address directly is refused; the existing service and bridge items still pass with the new settings.
+- Status: Done 2026-10-18.
+  - `infrastructure/onlyoffice/local-production-linux.json` and its README carry the settings.
+  - `editor-api` is now the default `API_INTERNAL_URL`. Outside `EDITOR_ENV=local` the API refuses any other value (`DOCUMENTSERVER_DIRECT_ORIGIN`, test).
+  - The root compose file and the battery give the API the `editor-api` alias. On the VPS the services are `editor-api-<env>` and `editor-documentserver-<env>`, and `editor-api` is an alias on the environment's own network (review M3). The check is an exact match, so a trailing slash or a path is refused (review M4).
+  - **Battery E6a** (`2026-10-19-partial-0057`, after the review fixes; first passed in `-0005`):
+    - S1, S2, E3a, and E5b pass with private addresses refused;
+    - a signed configuration and conversion naming a private address directly are refused (`error -4`).
+  - **Run `2026-10-18-partial-2339`:** S0–S2, E3a, E3b, and E5b pass with the new settings. Its E6a failed only on a settings check that read the wrong file (fixed). U12 now pins both its runs, so it still records DocumentServer's own default.
 
-### EDIT-6.2 Capacity
-- Measure the pinned release's concurrent-connection behaviour (not press reports) and memory per open editor; size the host for the expected concurrent editors.
+### EDIT-6.3 Converter probe and watchdog (ADR F17)
+- The API: `GET /health/converter` converts a built-in sample DOCX to PDF through DocumentServer (fetched from the API's own internal origin, a fresh key each time) within 20 s and answers 200 or 503. It answers loopback callers only (by socket address, not a forwarded header) and Caddy never routes it, since each call takes a converter slot.
+- The host: `infrastructure/vps/editor-converter-watch.sh`, run by cron every 5 minutes, calls the probe through `docker compose exec`. After two consecutive failures it waits for open editors to close (a bounded wait; a wedged converter already blocks saves and opens), then restarts DocumentServer in place (`docker compose restart`: the same container, no recreate; what an open editor had not saved is battery E6e's record), waits for font generation and the health check (F15), probes again, logs every step, and prints only alerts (cron mails them). It never touches anything but the editor's two services.
+- Acceptance: unit and route tests for the probe; a battery item that wedges the converter (F17's dropped-source recipe, directly against DocumentServer), shows the probe failing, runs the watchdog against the battery stack, and shows the probe passing again afterwards.
+- Status: Done 2026-10-18.
+  - **The probe:** `probeConverter` and two routes in `routes/health.ts`, with tests: fresh keys, the sample, refusals, timeouts, loopback by socket only, one probe at a time. 234 API tests.
+  - **The watchdog:** `infrastructure/vps/editor-converter-watch.sh`.
+  - **Battery E6b** (`2026-10-19-partial-0129` on the final watchdog; also `-0057` after review attempt 1, first passed in `-0028`):
+    - with both slots wedged, the probe answered 503 (`converter_unreachable`, 20 s);
+    - run 1 counted one failure;
+    - run 2 saw one open editor and waited;
+    - after the editor closed, run 3 saw none, restarted DocumentServer, and waited for it to be ready;
+    - the probe was 200 again about 3 minutes later (3 min 14 s in `-0057`);
+    - the probe is 404 to a caller that is not loopback;
+    - only alerts are printed for cron's mail (review M1).
+  - The watchdog's other failure paths were simulated in review: the API down, an unwritable state directory, and a failed restart (review L1–L4).
+  - **Battery E6e** (`-0057`, recorded): with a healthy converter, restarting DocumentServer in place while an editor held unsaved typing sent the final save (status 2) one second into the restart, with the typed text; the editor showed "Connection is lost". With a wedged converter this was not measured, so the watchdog waits for editors to close and alerts.
+  - The live editor count comes from `info.json`'s `quota` (E6c).
 
-### EDIT-6.3 Secrets and reachability
-- DocumentServer JWT, consumer credentials, notification secrets, and seal keys in 1Password and Secret Manager for each environment deployed. Notifications, conversion fetches and uploads, and panel pages reach and are reachable from the host: CRM dev's notification endpoint, Platform storage's hosts, and CRM's panel origin.
+### EDIT-6.4 Capacity
+- Measure on the pinned release, on the battery stack: DocumentServer's and the API's memory idle and with 1, 3, and 6 editors open, and with conversions running; DocumentServer's container memory over font generation. Size the containers' memory limits from it (above the API's file ceiling, (`EDITOR_SOURCE_CONCURRENCY` + `EDITOR_CONVERT_CONCURRENCY_TOTAL`) × 100 MB, 800 MB by default) and record the VPS budget it takes. Concurrent-connection behaviour of the Community edition (its connection cap) is read from the pinned release, not press reports.
+- Status: Recorded 2026-10-18 (battery E6c, `2026-10-19-partial-0022`).
+  - **Memory:** DocumentServer 364 MiB idle and 368 MiB with six editors open and conversions running; the API 33–38 MiB.
+  - **Connections:** the Community build reports no connection cap (`licenseInfo.connections` 2147483647). `quota.edit.connectionsCount` is the live count.
+  - **Limits:** DocumentServer 3 GiB, the API 1.5 GiB (reasons in the hosting ADR).
+  - **Not measured:**
+    - large documents;
+    - a converter on a 100 MB file;
+    - the font-generation peak. These are revisited from the VPS health check's memory readings.
 
-### EDIT-6.4 Acceptance (parent UDOC-1.6)
-- The editor opens from `crm-dev` with the panel loaded and a signed save notification reaches CRM. Under proposed amendment A4, a stub receiver on the `crm-dev` network (verifying the signature with the guide's reference verifier) satisfies this at UDOC-1.6 and CRM's own receiver is proven at UDOC-3.3; without A4's approval this item waits on UDOC-3.3 and close-out records it as the one open item.
-- Hosting and sizing are written down.
+### EDIT-6.5 The VPS fragment
+- `infrastructure/vps/`: the compose fragment (`editor-documentserver-<env>`, `editor-api-<env>`; `NODE_ENV=production`, `restart: unless-stopped`, memory limits, health checks, the env's network, the DocumentServer data volume), the Caddy block for `editor-dev.monolith.cx`, the env template (names only, never values), the watchdog and its cron line, and a README runbook: images (the editor API image from this repo, SHA-pinned in the registry Platform's Forgejo exit decides, FEX-0.4, Artifact Registry recommended; DocumentServer by tag and digest), the first start (wait for font generation, F15), deploy with drain, rollback, and the Secret Lifecycle rule.
+- The old GCE path (`infrastructure/gce/`, `infrastructure/cloudflare/`, `infrastructure/nginx/`) stays for the prod decision and the return-to-GCP plan; its README says so.
+- Status: Done 2026-10-18.
+  - `infrastructure/vps/`: the fragment (`docker compose config` passes), `Caddyfile.editor` (`caddy validate` passes on 2.10.2), `editor-api.env.example`, the watchdog, and `README.md` (the runbook).
+  - **Battery E6d** (`2026-10-19-partial-0057`; first passed in `-0005`): a real Caddy serving the shipped block on the battery network routes the paths as designed:
+    - `/health`, `/editor/*`, and the plugin go to the API;
+    - `/api/*` is 403 and `/health/*` is 404;
+    - DocumentServer's health check and JS API come from DocumentServer;
+    - the editor page keeps its `Referrer-Policy: no-referrer` (review M2: Caddy sets none);
+    - `/info/info.json` is refused with 403 (F7).
+  - TLS, HSTS, the WebSocket, and DocumentServer's forwarded headers are proven at 6.7, not by E6d.
+  - The fragment also sets `json-file` log rotation on both containers (review M5) and named volumes for DocumentServer's on-disk state (10.0.0.1 runs no PostgreSQL, RabbitMQ, or Redis of its own; checked). The runbook deploys with `up -d --no-deps` (review M6).
+  - `CLAUDE.md` names the VPS as the hosted shape.
 
-**Checkpoint:** single reviewer (Sonnet).
+### EDIT-6.6 Secrets and the stand-up (environment: each step needs Josh's approval)
+- The editor image's registry (FEX-0.4) decided and the image pushed there; then the DocumentServer JWT, the seal keys, the consumer credentials, and the notification secrets for dev in 1Password, the VPS env file, and Google Secret Manager (`monolith-docs` project), together. DNS for `editor-dev.monolith.cx`, the Caddy block, the images pushed, the services started per the runbook, and the watchdog's cron line installed.
+- Monitoring: the watchdog's cron line; both containers added to the box's `health-check.sh` critical list; cron mail checked deliverable; DocumentServer's memory and `OOMKilled` watched over its first font generation (E6c did not measure that peak). Caddy's error log for this host decided (ERRORS.md, 2026-10-18).
+- Reachability: the API reaches DocumentServer and the consumers' hosts; DocumentServer reaches the API by compose name; browsers reach `editor-dev.monolith.cx`; CRM dev reaches the API by compose name.
+
+### EDIT-6.7 Acceptance (parent UDOC-1.6)
+- The editor opens from `crm-dev` with the panel loaded and a signed save notification reaches CRM. Under amendment A4 (approved 2026-10-16), a stub receiver on the `monolith-dev` network (verifying the signature with the guide's reference verifier) satisfies this at UDOC-1.6, and CRM's own receiver is proven at UDOC-3.3.
+- The F2 re-verification behind the real proxy: the save `url` origin DocumentServer reports is one `ONLYOFFICE_CALLBACK_URL_ORIGINS` admits.
+- Hosting and sizing are written down (ADR, runbook).
+
+Two checkpoints: **6.1–6.5** (local; single reviewer, Sonnet) before anything touches the VPS, then **6.6–6.7** (the stand-up).
+
+**Checkpoints:** as above (Sonnet).
 
 ---
 

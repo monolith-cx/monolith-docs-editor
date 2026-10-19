@@ -1,0 +1,55 @@
+# The editor's public host on the VPS Caddy (EDIT-6.5, guidance E9). Merge into
+# /srv/monolith/caddy/Caddyfile and restart the Caddy container (the playbook's reload gotcha:
+# `admin off` means no `caddy reload`). Dev host shown; prod is decided at the prod stand-up.
+#
+# Routes, mirroring the old nginx site (infrastructure/nginx/monolith-docs.conf):
+#   /editor/*, /plugins/udoc-bridge/*, /health  -> the API (editor pages, the bridge plugin, health)
+#   /api/*                                      -> refused: consumers on the box call the API by its
+#                                                  compose name (http://editor-api:3020), never here
+#   /health/*                                   -> refused: the converter probe is loopback-only and
+#                                                  takes a converter slot (EDIT-6.3)
+#   everything else                             -> DocumentServer (assets, the JS API, co-editing
+#                                                  WebSocket, cache files)
+#
+# Upstreams by their per-environment names (editor-api-dev, editor-documentserver-dev): Caddy joins
+# both environments' networks, so the unqualified alias `editor-api` would be ambiguous here.
+#
+# No `log` directive: this host must not get an access log. Editor pages, DocumentServer's cache
+# files, and co-editing paths carry a capability in the path, and signed URLs carry it in the query
+# (EDIT-4). If an access log is ever needed, it must drop the path and query the way the nginx map did.
+# Residual (ERRORS.md, 2026-10-18): Caddy's error log records the request URI when an upstream fails,
+# like nginx's did; the box's global log settings decide that, at the stand-up (EDIT-6.6).
+#
+# No Referrer-Policy here: the editor page sends its own `no-referrer` (its path is a capability), and
+# a value set in this block would replace it (battery E6d checks the page's header through Caddy).
+editor-dev.monolith.cx {
+	header {
+		X-Content-Type-Options nosniff
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	request_body {
+		max_size 100MB
+	}
+
+	handle /api/* {
+		header Content-Type application/json
+		respond `{"error":"API access is not available on this hostname"}` 403
+	}
+	handle /health/* {
+		respond 404
+	}
+	handle /health {
+		reverse_proxy editor-api-dev:3020
+	}
+	handle /editor/* {
+		reverse_proxy editor-api-dev:3020
+	}
+	handle /plugins/udoc-bridge/* {
+		reverse_proxy editor-api-dev:3020
+	}
+	handle {
+		# WebSocket upgrades pass through; Caddy sets no read timeout on them.
+		reverse_proxy editor-documentserver-dev:80
+	}
+}

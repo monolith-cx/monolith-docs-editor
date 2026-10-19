@@ -3,6 +3,7 @@ import fp from 'fastify-plugin';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { config } from './config.js';
+import { PROBE_ROUTE, PROBE_SAMPLE_ROUTE } from './health-paths.js';
 import { PLUGIN_PREFIX } from './routes/plugin.js';
 import { findConsumersByHostname, getConsumers } from './consumers.js';
 import type { Consumer, HmacAuth, JwksAuth } from './consumers.js';
@@ -70,6 +71,12 @@ export const authPlugin = fp(async function authPlugin(app: FastifyInstance): Pr
   app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
     // Public paths — no auth needed
     if (req.url === '/health' || req.url === '/api/status' || req.url.startsWith('/editor/')) {
+      return;
+    }
+
+    // The converter probe and its sample (EDIT-6.3): the probe checks its caller is loopback itself;
+    // the sample is a fixed file DocumentServer fetches
+    if (req.method === 'GET' && (req.url === PROBE_ROUTE || req.url === PROBE_SAMPLE_ROUTE)) {
       return;
     }
 

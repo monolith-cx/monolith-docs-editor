@@ -30,6 +30,9 @@ services:
     env_file:
       - path: .env
         required: false
+    networks:
+      default:
+        aliases: [editor-api]
     ports:
       - "127.0.0.1:3020:3020"
     environment:
@@ -45,7 +48,8 @@ services:
       - ONLYOFFICE_PUBLIC_URL=${ONLYOFFICE_PUBLIC_URL:-http://localhost:8080}
       - ONLYOFFICE_JWT_SECRET=${ONLYOFFICE_JWT_SECRET:-dev-only-secret-do-not-use-in-prod}
       - API_PUBLIC_URL=${API_PUBLIC_URL:-http://localhost:3020}
-      - API_INTERNAL_URL=${API_INTERNAL_URL:-http://api:3020}
+      # DocumentServer fetches directly only from this origin (its directIfIn allow-list, EDIT-6.2).
+      - API_INTERNAL_URL=${API_INTERNAL_URL:-http://editor-api:3020}
       - CONSUMERS=${CONSUMERS:-}
       - CONSUMER_API_KEY=${CONSUMER_API_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-}

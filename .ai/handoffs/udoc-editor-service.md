@@ -14,7 +14,8 @@
 | EDIT-1 (OnlyOffice 10.0.0.1 and the battery) | Done (U13 waived by Josh) | `dfbb48e` |
 | EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed | `c7bfa21` |
 | EDIT-3 (UDOC-1.3) | Code-complete 2026-10-18; not deployed | `0f70bf0` |
-| EDIT-5 (UDOC-1.5) | Code-complete 2026-10-18; not deployed; uncommitted | — |
+| EDIT-5 (UDOC-1.5) | Code-complete 2026-10-18; not deployed | `381d50b` |
+| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18, uncommitted; 6.6–6.7 (the VPS stand-up and acceptance) await Josh's approval step by step | — |
 
 EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
@@ -138,10 +139,50 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
   - Records: `reviews/review-edit-5-attempt-{1,2,3}-{sonnet,codex}.md`.
   - DeepSeek is still unavailable.
 
+### What EDIT-6.1–6.5 changed (the local half)
+
+- **Hosting, decided by Josh 2026-10-18 (guidance E9; ADR `docs/adr/2026-10-18-editor-hosting.md`):**
+  - the OVH VPS, in the `monolith-dev` compose project, as `editor-documentserver-dev` and `editor-api-dev`;
+  - the public host `editor-dev.monolith.cx`, behind the shared Caddy;
+  - why: GCP compute was exited (VPSM), so GCE was not chosen.
+- **DocumentServer's settings (6.2, F3 and F17):**
+  - `directIfIn` is `jwtToken: false` with the allow-list `http://editor-api:3020/`, and private addresses are refused;
+  - `maxprocesscount` is 2;
+  - the API answers on `editor-api` everywhere, and outside `EDITOR_ENV=local` it refuses any other `API_INTERNAL_URL`.
+- **The converter probe and the watchdog (6.3, F17):**
+  - `GET /health/converter` answers loopback only.
+  - `infrastructure/vps/editor-converter-watch.sh`, run by cron, restarts DocumentServer in place after two failures, once editors have closed (at most 15 minutes). It logs every step and prints only alerts.
+- **Capacity (6.4):** DocumentServer about 370 MiB and the API under 40 MiB, idle and with six editors open. The limits are 3 GiB and 1.5 GiB. The Community build reports no connection cap.
+- **The VPS fragment (6.5):** `infrastructure/vps/` holds the compose fragment, the Caddy block, the env template, the watchdog, and the runbook README.
+- **Found:**
+  - DocumentServer 10.0.0.1 runs no PostgreSQL, RabbitMQ, or Redis of its own.
+  - The live editor count is `info.json`'s `quota.*.connectionsCount`.
+  - A restart in place, with a healthy converter, saves what an open editor typed (E6e).
+  - Caddy's error log records full request URIs (a new `ERRORS.md` entry).
+
+### EDIT-6 local verification
+
+- **Tests:** 234 API tests and 38 plugin tests; typecheck and lint clean. Compose (the root, the battery, and the fragment) and `caddy validate` pass.
+- **Battery on 10.0.0.1:**
+  - `2026-10-18-partial-2339`: S0–S2, E3a, E3b, and E5b with the new settings; U12 still records DocumentServer's own default.
+  - `2026-10-19-partial-0022`: E6c, capacity.
+  - `2026-10-19-partial-0057`: E6a, E6b, and E6d pass and E6e is recorded, after the review fixes.
+  - `-0005` and `-0028` are earlier passes.
+- **Review:** Sonnet, attempt 1 PASS-WITH-NITS (6 Medium, 11 Low, every finding applied); attempt 2 PASS-WITH-NITS (2 Low, 9 nits, all applied; E6b re-run on the final watchdog: `2026-10-19-partial-0129`, pass). Records: `reviews/review-edit-6-local-attempt-*-sonnet.md`.
+
 ## Blockers and open decisions (Josh)
 
 - **Deploy gate:** EDIT-2 changes the headless API: it removes two routes and refuses the legacy shape from profile consumers. `standalone-app` Phase 0 must close or be re-baselined before EDIT-2 is deployed.
-- **No environment exists.** EDIT-6 is a from-scratch stand-up. EDIT-2.1's dev secrets (1Password, Secret Manager, `CREDENTIALS.md`) are created then; the env examples list every name.
+- **No environment exists.** EDIT-6.6 is the stand-up on the VPS (runbook `infrastructure/vps/README.md`), and each step needs Josh's approval:
+  - secrets in 1Password, the env files, and Secret Manager;
+  - DNS for `editor-dev.monolith.cx`;
+  - the files and compose merge;
+  - starting DocumentServer, then the API;
+  - Caddy, including its error-log decision;
+  - the watchdog's cron line and the `health-check.sh` entry.
+- **Before the first deploy:**
+  - the editor image's registry, which Platform's Forgejo exit decides (FEX-0.4; Artifact Registry `monolith-docs/editor-images` is recommended), and the box's pull access to it;
+  - a decision on Caddy's error log for this host (`ERRORS.md`).
 - **Cloudflare (EDIT-4.2):** still blocked.
 - **DeepSeek reviewer:** unavailable until `op` is signed in on this host.
 
@@ -152,26 +193,34 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 - F16 is a design finding, recorded in the ADR; it is not a defect.
 - EDIT-3: one new unresolved error logged in `ERRORS.md` (2026-10-18 13:09): DocumentServer's converter wedges on a partial or slow source download (ADR F17). Known triggers are prevented in the service; recovery (health check and restart) is EDIT-6's.
 - EDIT-5: no new unresolved errors. Two defects were found and fixed in this checkpoint: the empty-`replace` loop and the `TRUST_PROXY` breadth. Nothing was added to `ERRORS.md`.
+- EDIT-6 (local half):
+  - **New unresolved entry** in `ERRORS.md` (2026-10-18 17:58): the shared Caddy's error log records full request URIs, editor tokens included. It was observed in a container, and is decided at the stand-up.
+  - **Updated entries:** DocumentServer's logs (retention is the image's logrotate) and the F17 converter (recovery built and proven). Both stay open until deployed.
 
 ## Next step
 
-- EDIT-6 (hosting and capacity), which carries the F17 follow-ups. It also stands up the environment that EDIT-2 to EDIT-5 deploy into.
+- Commit EDIT-6.1–6.5 with Josh's approval.
+- Then EDIT-6.6, the VPS stand-up, step by step with Josh's approval per the runbook.
+- Then EDIT-6.7, the acceptance: a stub consumer on `monolith-dev`, the editor with its panel through `editor-dev.monolith.cx`, a signed save verified, and F2's save-URL origin.
 
 ## Follow-ups noted
 
 - `CLAUDE.md`'s reviewer lines carry another session's uncommitted edit that names MiniMax, which is retired. Reconcile them with `.ai/iddp/config.json` when that edit is resolved.
 - SA-1.7 (editor-page `frame-ancestors`) is still a candidate follow-up; the guide states it.
 - EDIT-6:
-  - DocumentServer's `directIfIn.jwtToken=false` with an allow-list, as defence in depth (F3);
-  - the in-process rate limiter, when there are several instances;
-  - set `TRUST_PROXY` to the proxies' addresses on the real host.
+  - The in-process limiters must move before running several API instances.
+  - DOC-DPP's working-tree Phase 4 (another session's, uncommitted) still describes GCE; its owner reconciles it with E9.
+  - CI for the editor image and `vps-deploy.sh` with `--no-deps` belong to DOC-DPP and to the Forgejo exit's editor child (FEX-2.4, not yet drafted; another session's).
+  - The font-generation memory peak and large-document conversions were not measured; watch them on the box.
+  - `standalone-app`'s plan and guidance (another session's files) still describe the default `API_INTERNAL_URL` as `http://api:3020`; since EDIT-6.2 it is `http://editor-api:3020`. Their owner reconciles it.
 - ADR F16's question, whether the plugin can withdraw "Remove content control", was not probed at EDIT-5 and stays open. UDOC-3's D16 validation is the control either way.
 
 ## Commit state
 
 - Committed on `main`, not pushed: `0158323`, `9f54904`, `28a27d9`, `dfbb48e`, `5e5baba`, `c7bfa21` (EDIT-2, with Josh's approval 2026-10-18; Platform `61babd8`).
 - `0f70bf0` (EDIT-3, with Josh's approval 2026-10-18; Platform `eb4b8ab`).
-- EDIT-5 is uncommitted and awaits Josh's approval, together with Platform's UDOC doc sync and contract 0.3.0-draft.
+- `381d50b` (EDIT-5, with Josh's approval 2026-10-18; Platform `5c83e07`).
+- EDIT-6.1–6.5 are uncommitted and await Josh's approval, together with Platform's UDOC doc sync.
 - Older sessions' uncommitted work stays out:
   - `.ai/handoffs/standalone-app.md` and `.ai/iddp/config.json`;
   - the standalone-app plan and its review files;

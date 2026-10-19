@@ -14,6 +14,10 @@ services:
       PLUGINS_ENABLED: "false"
     volumes:
       - ../../infrastructure/onlyoffice/local-production-linux.json:/etc/onlyoffice/documentserver/local-production-linux.json:ro
+    networks:
+      default:
+        # The VPS dev service name (infrastructure/vps/), so item E6d routes the shipped Caddy block.
+        aliases: [editor-documentserver-dev]
     ports:
       - "127.0.0.1:18200:80"
     healthcheck:
@@ -54,7 +58,8 @@ services:
       ONLYOFFICE_PUBLIC_URL: http://127.0.0.1:18200
       ONLYOFFICE_JWT_SECRET: ${BATTERY_JWT_SECRET:?set by the runner}
       API_PUBLIC_URL: http://127.0.0.1:18204
-      API_INTERNAL_URL: http://api:3020
+      # The name DocumentServer's directIfIn allow-list admits (EDIT-6.2); `editor-api` is an alias here.
+      API_INTERNAL_URL: http://editor-api:3020
       # EDITOR_ENV=local admits http and private addresses (the scratch network) and api-key consumers.
       EDITOR_ENV: local
       EDITOR_SEAL_KEYS: ${BATTERY_SEAL_KEY:?set by the runner}
@@ -68,6 +73,11 @@ services:
           "notificationSecretRef":"EDITOR_NOTIFY_SECRET_BATTERY","panelOrigins":["http://127.0.0.1:18202"],
           "fileHosts":["stub"],"convertSourceHosts":["stub"],"convertUploadHosts":["stub"],"returnOrigin":"http://127.0.0.1:18201"},
          {"id":"legacy","name":"Legacy-shape consumer","auth":{"mode":"api-key","key":"${BATTERY_LEGACY_KEY:?set by the runner}"}}]
+    networks:
+      default:
+        # editor-api: DocumentServer's directIfIn allow-list (EDIT-6.2); editor-api-dev: the VPS dev
+        # service name, for item E6d's Caddy block.
+        aliases: [editor-api, editor-api-dev]
     ports:
       - "127.0.0.1:18204:3020"
     depends_on:

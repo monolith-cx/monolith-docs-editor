@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "release": "10.0.0.1",
+    "date": "2026-10-19",
+    "image": "onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3",
+    "started": "2026-10-19T00:05:25.340Z",
+    "finished": "2026-10-19T00:22:18.030Z",
+    "host": "altus-labs-dev",
+    "only": "E6a,E6b,E6c,E6d",
+    "dsSettleSeconds": 175,
+    "totals": {
+      "pass": 3,
+      "error": 1
+    }
+  },
+  "results": [
+    {
+      "id": "E6a",
+      "title": "DocumentServer as the VPS runs it (private addresses refused, directIfIn limited to the service's internal origin): the service's flows still work, a signed private URL does not",
+      "parent": "EDIT-6.2 / UDOC-1.6 (ADR F3)",
+      "result": "pass",
+      "evidence": [
+        "DocumentServer settings: { \"aiSettings\": { \"enable\": false }, \"externalRequest\": { \"directIfIn\": { \"allowList\": [ \"http://editor-api:3020/\" ], \"jwtToken\": false } }, \"FileConverter\": { \"converter\": { \"maxprocesscount\": 2 } } }; generated filter: env=false local=unset; as the VPS runs it true",
+        "S1 under these settings: PASS (open 200, key battery.bat_mvei20s8_1.e1; editor drew the document under the page's CSP (violations: none) | the consumer's file was fetched 1 time(s), every time by the service (source route, pinned), never by DocumentServer: true (fetchers: api) | consumer notifications: editing[1], saved[0]; every signature valid true | final save: deliveryId present and equal to its header true; download URL or)",
+        "S2 under these settings: PASS (fastmail-connect (edit:false, download, print, no callback): uploaded through /api/files/upload (internal fileUrl true); open 200 (key legacy.legacy-3058be3e-20b9-492d-b71c-a55ce7d665d5.v0); DocumentServer drew the uploaded file; typed then force-save answered error 4 (want 4: view-only held) | Connect extension (default permissions, no callback): uploaded through /api/files/upload (internal fileU)",
+        "E3a under these settings: PASS (contract-cl.docx: 200 {\"size\":55025,\"sha256\":\"7d74ed05b8207f88006b1d1848977957f74fb366f55be6106d76ac577e66674b\"} in 1s; uploaded 55025 bytes (size and sha256 match true) by api, content-type application/pdf, content-length 55025; source fetched by api (never DocumentServer) | contract-cl.docx: fonts BAAAAA+Liberation Serif-Bold emb=yes; CAAAAA+Liberation Serif emb=yes; DAAAAA+Liberation Serif-Ital)",
+        "E5b under these settings: PASS (getSelection: \"Services Agreement for Acme Testing LLC\\n\"; getText before: 14 paragraphs | insertField inline {\"type\":\"udoc.response\",\"id\":\"r3\",\"ok\":true,\"result\":{\"tag\":\"field:r9\"}}, insertToken true, insertField block {\"type\":\"udoc.response\",\"id\":\"r5\",\"ok\":true,\"result\":{\"tag\":\"block:b9\"}}, applySuggestion true, addComment true | comments on the inserted text, not the deleted: \"use the legal nam)",
+        "a JWT-signed config and conversion naming the stub's private address directly: document fetched false, callbacks 0, conversion refused {\"http\":200,\"error\":-4}: refused true"
+      ],
+      "seconds": 523
+    },
+    {
+      "id": "E6b",
+      "title": "The converter watchdog: with both converter slots wedged the probe fails, the watchdog restarts DocumentServer after two failures, and the probe passes again; the probe answers only loopback",
+      "parent": "EDIT-6.3 / UDOC-1.6 (ADR F17, F15)",
+      "result": "pass",
+      "evidence": [
+        "probe before: 200 {\"status\":\"ok\",\"ms\":1009}; from the host through the published port: 404 (loopback only); the sample: 200 1277 bytes",
+        "wedged 2 converter slot(s) with ADR F17's dropped source; probe then: 503 {\"status\":\"unhealthy\",\"ms\":20005,\"detail\":\"converter_unreachable\"}",
+        "watchdog run 1: exit 1: 2026-10-19T00:18:10Z editor-converter-watch converter probe failed (1 of 2 before acting)",
+        "watchdog run 2: exit 4: 2026-10-19T00:18:30Z editor-converter-watch converter wedged (2 failed probes); restarting ds (open editors: unknown, waited 0m) 2026-10-19T00:21:55Z editor-converter-watch restarted ds; converter probe ok",
+        "probe after: 200 {\"status\":\"ok\",\"ms\":1004}"
+      ],
+      "seconds": 276
+    },
+    {
+      "id": "E6c",
+      "title": "Capacity on the pinned release: DocumentServer's and the API's memory idle, with 1, 3, and 6 editors open, and during conversions; the connection statistics and limits it reports",
+      "parent": "EDIT-6.4 / UDOC-1.6",
+      "result": "error",
+      "evidence": [
+        "threw: open answered 400"
+      ],
+      "seconds": 7
+    },
+    {
+      "id": "E6d",
+      "title": "The VPS Caddy block routes the editor's public host as designed: editor pages, the plugin, and /health to the API; /api/* and /health/* refused; everything else to DocumentServer",
+      "parent": "EDIT-6.5 / UDOC-1.6",
+      "result": "pass",
+      "evidence": [
+        "/health reaches the API: /health → 200 application/json: true",
+        "/api/status is refused: /api/status → 403 application/json: true",
+        "/api/documents/open is refused: /api/documents/open → 403 application/json: true",
+        "/health/converter is refused: /health/converter → 404 : true",
+        "/health/converter-sample.docx is refused: /health/converter-sample.docx → 404 : true",
+        "the bridge plugin comes from the API: /plugins/udoc-bridge/config.json → 200 application/json: true",
+        "an editor page goes to the API (a bad token gets its expired page): /editor/not-a-token → 410 text/html: true",
+        "DocumentServer's health check comes from DocumentServer: /healthcheck → 200 text/plain: true",
+        "DocumentServer's JS API comes from DocumentServer: /web-apps/apps/api/documents/api.js → 200 application/javascript: true"
+      ],
+      "seconds": 4
+    }
+  ]
+}
