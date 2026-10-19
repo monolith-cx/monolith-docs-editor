@@ -1,0 +1,29 @@
+# Quality gate: lint, typecheck, tests, build via the repo's turbo wrapper.
+# Net-new coverage — this repo never had CI on GitHub (only the auto-injected
+# CodeQL scanner, which is not a repo workflow). No deploys exist here.
+# Doubles as the pnpm/Turborepo CI rehearsal for the other monolith repos.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
