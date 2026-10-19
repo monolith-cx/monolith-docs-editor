@@ -4,7 +4,7 @@
 **Abbreviation:** EGM
 **Owner:** josh
 **Parent:** monolith-platform `forgejo-exit` (FEX-3.4). Sibling: monolith-docs `github-migration` (GHM).
-**Status:** Active. Drafted 2026-10-19; plan review PASS-WITH-NITS, every finding applied. **EGM-0.1 (the merge) is done locally (`d778652`). No push has happened**, and every push waits for the owner's explicit yes.
+**Status:** Active. Drafted 2026-10-19; plan review PASS-WITH-NITS, every finding applied. **EGM-0.1–0.7 done 2026-10-19** with the owner's approval: the source of truth is `monolith-cx/monolith-docs-editor` (public), and `main` is at `e07f189`. Still open: EGM-0.8, the Forgejo export (due by 10-27).
 **Hard deadline:** 2026-10-31
 **Last updated:** 2026-10-19
 **Guidance:** [guidance.md](./guidance.md)
@@ -20,7 +20,7 @@
 
 | Ref | Phase | Target | Depends on | Status |
 |---|---|---|---|---|
-| EGM-0 | First push and cutover into `monolith-cx` | 2026-10-20 | — | 0.1 done (local merge `d778652`); the rest is planned |
+| EGM-0 | First push and cutover into `monolith-cx` | 2026-10-20 | — | **0.1–0.7 done 2026-10-19**; 0.8 (export) open |
 | EGM-1 | CI on GitHub Actions and the `main` ruleset | 2026-10-22 | EGM-0 | Planned |
 | EGM-2 | `editor-api` image to GHCR | 2026-10-24 | EGM-1; FEX-4.1 for the VPS pull | Planned |
 | EGM-3 | Doc sweep and close | 2026-10-28 | EGM-2 | Planned |
@@ -35,21 +35,21 @@
   - Local `main` (`44d097b`, 10 commits on no remote) and Forgejo `main` (`32bb2db`, the September CI PR #1) were bundled into `monolith-cx/forgejo-archive` release `editor-main-2026-10-19` (FEX-0.0).
   - On 2026-10-19 Forgejo `main` was merged into local `main` with `git merge --no-ff origin/main`, giving `d778652`. The merge was clean, and it adds only `.forgejo/workflows/ci.yml`.
   - `git rev-list --left-right --count github/main...main` is `0 11`, so the push is a fast-forward.
-- [ ] **EGM-0.1a** **Owner approval:** commit `.ai/initiatives/active/github-migration/` (untracked) and the EGM entry in `.ai/registry.yml` onto local `main`. The registry hunk goes in through `git apply --cached`, so the other session's DOC-DPP hunks stay unstaged. The first push then carries the initiative.
-- [ ] **EGM-0.2** Secret check before publishing. The 2026-10-19 scan of the ten commits was clean (guidance E2). Re-run it on `github/main..main` (11 commits plus the 0.1a commit) immediately before 0.4, and record the result. GitHub's secret-scanning push protection is on for this repo. If it flags the all-`0x01` test seal key, the push is refused, which is a safe failure; resolve it by reviewing that one hit, never by bypassing protection blindly.
-- [ ] **EGM-0.3** **Owner approval:** delete the Forgejo push mirror through the API. Use the `forgejo-api-claude` token through the 1Password service account, never printed, as Docs' GHM-0.5 did: list `push_mirrors`, delete the one targeting GitHub, and re-list to confirm it's empty. Record the time.
-- [ ] **EGM-0.4** **Owner approval: the first push to the public repo.**
+- [x] **EGM-0.1a** (Done: `e07f189`. The registry hunk was staged with `git hash-object` and `update-index`, so the other session's DOC-DPP edits stayed unstaged.) **Owner approval:** commit `.ai/initiatives/active/github-migration/` (untracked) and the EGM entry in `.ai/registry.yml` onto local `main`. The registry hunk goes in through `git apply --cached`, so the other session's DOC-DPP hunks stay unstaged. The first push then carries the initiative.
+- [x] **EGM-0.2** (Done 16:39 PDT. All 12 commits scanned. The only hits were test fixtures (`startup-test…` and `test-onlyoffice…` JWT strings, the all-`0x01` seal key) and a public CSP hash. `.env.example` holds placeholders only. Push protection raised nothing.) Secret check before publishing. The 2026-10-19 scan of the ten commits was clean (guidance E2). Re-run it on `github/main..main` (11 commits plus the 0.1a commit) immediately before 0.4, and record the result. GitHub's secret-scanning push protection is on for this repo. If it flags the all-`0x01` test seal key, the push is refused, which is a safe failure; resolve it by reviewing that one hit, never by bypassing protection blindly.
+- [x] **EGM-0.3** (Done 2026-10-19 16:40 PDT. `remote_mirror_x5rMT8OXok0` was deleted (204) and `push_mirrors` now lists nothing.) **Owner approval:** delete the Forgejo push mirror through the API. Use the `forgejo-api-claude` token through the 1Password service account, never printed, as Docs' GHM-0.5 did: list `push_mirrors`, delete the one targeting GitHub, and re-list to confirm it's empty. Record the time.
+- [x] **EGM-0.4** (Done. `32bb2db..e07f189` as a fast-forward, and `ls-remote` equals local `main`. GitHub's push notice reported **76 Dependabot alerts** on the default branch (1 critical, 31 high, 39 moderate, 5 low), logged in `ERRORS.md`.) **Owner approval: the first push to the public repo.**
   ```bash
   git push github main:main
   ```
   It must be a fast-forward from `32bb2db`. A rejection means stop and reconcile; never use `--force`. Afterwards `git ls-remote github refs/heads/main` must equal local `main`. Record both.
-- [ ] **EGM-0.5** **Owner approval:** delete the mirror's GitHub deploy key. The key is `forgejo-push-mirror-v2`, id **162135820**, write access (listed 2026-10-19). List again with `gh api repos/altus-labs-dev/monolith-docs-editor/keys` and delete exactly that id. If the mirror used a PAT instead, revoke it. Record which it was.
-- [ ] **EGM-0.6** **Owner approval:** transfer the repo.
+- [x] **EGM-0.5** (Done. Key 162135820 `forgejo-push-mirror-v2` was deleted, and the repo has 0 keys.) **Owner approval:** delete the mirror's GitHub deploy key. The key is `forgejo-push-mirror-v2`, id **162135820**, write access (listed 2026-10-19). List again with `gh api repos/altus-labs-dev/monolith-docs-editor/keys` and delete exactly that id. If the mirror used a PAT instead, revoke it. Record which it was.
+- [x] **EGM-0.6** (Done. It is `monolith-cx/monolith-docs-editor`, **visibility public**, default branch `main`, Actions enabled with the org's SHA-pin policy, and `main` is at `e07f189`. The old URL redirects.) **Owner approval:** transfer the repo.
   ```bash
   gh api --method POST /repos/altus-labs-dev/monolith-docs-editor/transfer -f new_owner=monolith-cx
   ```
   Confirm the visibility stays **public** (guidance E2), Actions is enabled, and the refs are unchanged. There's no precedent in this org for a public repo transfer, and an enterprise policy could refuse it; the fallback is in guidance E2. Never create a repo with the old name in `altus-labs-dev`, because the redirect depends on it.
-- [ ] **EGM-0.7** Swap the remotes:
+- [x] **EGM-0.7** (Done. `origin` points to `monolith-cx`, `forgejo` is the old remote, and `main` tracks `origin/main`.) Swap the remotes:
   ```bash
   git remote rename origin forgejo
   git remote set-url github git@github.com:monolith-cx/monolith-docs-editor.git

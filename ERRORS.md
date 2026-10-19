@@ -4,6 +4,11 @@ Durable follow-up log for concrete errors found during sessions and left unresol
 
 ## Unresolved
 
+- [ ] 2026-10-19 16:41 PDT - repo dependencies (`pnpm-lock.yaml`) - GitHub Dependabot reports 76 vulnerable dependency alerts on the default branch: 1 critical, 31 high, 39 moderate, 5 low
+  - Observed via: the GitHub push notice on the first push to the public repo (EGM-0.4, `32bb2db..e07f189`), pointing at `https://github.com/monolith-cx/monolith-docs-editor/security/dependabot`.
+  - Impact: the editor is not deployed anywhere today (EDIT-4 and EDIT-6 notes), so nothing is exposed right now. It must be triaged before the EDIT-6.6 VPS stand-up. The repo is public, so the alerts are visible to anyone with access to the security tab.
+  - Left unresolved because: dependency upgrades are outside EGM-0's cutover scope. Triage them in their own branch before EDIT-6.6, the way monolith-docs handled its audit failure (PR #2), and add an audit gate to the EGM-1 CI if the owner wants one.
+
 - [ ] 2026-10-18 17:58 PDT - `infrastructure/vps/Caddyfile.editor` (the shared VPS Caddy's error log) - Caddy's error log records the full request URI when an upstream fails, editor tokens and signed query strings included
   - Observed via: the shipped block in a `caddy:2.10.2` container with no upstreams (EDIT-6 review, M5): `GET /editor/SECRETTOKEN123?x=SIGNATURE456` and `GET /cache/files/data/key_1/output.docx?md5=SIGNED789` both answered 502 and Caddy's default log wrote `"uri"` with the path and query unchanged.
   - Impact: once hosted, an outage of the editor API or DocumentServer would write live editor tokens (each opens a session until it expires, at most 12 hours) and DocumentServer's signed cache URLs into the box's Caddy log, the same residual nginx had (the nginx error-log entry below).
