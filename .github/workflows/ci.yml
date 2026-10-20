@@ -1,0 +1,60 @@
+# CI for the editor service on GitHub Actions (EGM-1), ported from the retired
+# .forgejo/workflows/ci.yml: lint, typecheck, tests, and build through the
+# repo's turbo wrapper. No secrets and no deploys here.
+#
+# Rules (shared with monolith-docs' ci.yml):
+#   * Every action is pinned to a full commit SHA (the monolith-cx org requires it).
+#   * No ${{ }} interpolation inside any `run:` body.
+#   * The required status check is `checks` (the ruleset names it).
+#   * The OnlyOffice battery (scripts/editor-battery) needs Docker and DocumentServer
+#     and is run by hand, never here; it defines no lint, typecheck, test, or build
+#     script, so turbo never runs it.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Superseded PR runs are cancelled; every push to main gets its own group.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Node 24 from .nvmrc, matching engines (>=24) and the Dockerfile (node:24-alpine).
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+
+      # corepack, as the Forgejo job did: packageManager carries pnpm's sha512, and
+      # scripts/bin/pnpm runs `corepack pnpm`, so one pnpm is used everywhere.
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm --version
+          pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
