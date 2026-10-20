@@ -4,7 +4,7 @@
 **Abbreviation:** EGM
 **Owner:** josh
 **Parent:** monolith-platform `forgejo-exit` (FEX-3.4). Sibling: monolith-docs `github-migration` (GHM).
-**Status:** Active. Drafted 2026-10-19; plan review PASS-WITH-NITS, every finding applied. **EGM-0.1–0.7 done 2026-10-19** with the owner's approval: the source of truth is `monolith-cx/monolith-docs-editor` (public), and `main` is at `e07f189`. Still open: EGM-0.8, the Forgejo export (due by 10-27).
+**Status:** Active. Drafted 2026-10-19; plan review PASS-WITH-NITS, every finding applied. **EGM-0.1–0.7 done 2026-10-19** with the owner's approval: the source of truth is `monolith-cx/monolith-docs-editor` (public), and `main` is at `e07f189`. **EGM-1 done 2026-10-19:** CI is green on GitHub Actions, `.forgejo/` is gone, and the `main` ruleset is active with its negative tests recorded. Still open: EGM-0.8, the Forgejo export (due by 10-27), and EGM-2 and EGM-3.
 **Hard deadline:** 2026-10-31
 **Last updated:** 2026-10-19
 **Guidance:** [guidance.md](./guidance.md)
@@ -21,7 +21,7 @@
 | Ref | Phase | Target | Depends on | Status |
 |---|---|---|---|---|
 | EGM-0 | First push and cutover into `monolith-cx` | 2026-10-20 | — | **0.1–0.7 done 2026-10-19**; 0.8 (export) open |
-| EGM-1 | CI on GitHub Actions and the `main` ruleset | 2026-10-22 | EGM-0 | Planned |
+| EGM-1 | CI on GitHub Actions and the `main` ruleset | 2026-10-22 | EGM-0 | **Done 2026-10-19** |
 | EGM-2 | `editor-api` image to GHCR | 2026-10-24 | EGM-1; FEX-4.1 for the VPS pull | Planned |
 | EGM-3 | Doc sweep and close | 2026-10-28 | EGM-2 | Planned |
 
@@ -70,7 +70,7 @@
 
 ## EGM-1 CI on GitHub Actions and the `main` ruleset
 
-- [ ] **EGM-1.1** Write `.github/workflows/ci.yml`, ported from `.forgejo/workflows/ci.yml`:
+- [x] **EGM-1.1** (Done. PR #1: Node 24 from `.nvmrc`, corepack pnpm, SHA pins (checkout v4.4.0, setup-node v4.4.0), actionlint clean.) Write `.github/workflows/ci.yml`, ported from `.forgejo/workflows/ci.yml`:
   - triggers: `pull_request` and `push` to `main`;
   - job `checks` on `ubuntu-24.04`, with `permissions: contents: read` and a concurrency group that cancels superseded PR runs only;
   - `timeout-minutes: 30`;
@@ -78,8 +78,17 @@
   - `corepack enable`, then `pnpm install --frozen-lockfile`, lint, typecheck, test, and build, through the repo's turbo wrapper, as the Forgejo job does;
   - the OnlyOffice battery (`scripts/editor-battery`, Docker-based) is **not** run in CI. Confirm that `pnpm test` and `build` don't invoke it;
   - actionlint clean.
-- [ ] **EGM-1.2** Delete `.forgejo/` in the same PR. Open the PR into `main`, run it until green, and record the run id and its timings. A failure caused by the runner is fixed in the workflow. A real defect gets its own commit and goes to `ERRORS.md`.
-- [ ] **EGM-1.3** **Owner approval:** the `main` ruleset, from `rulesets/main-protection.json`, written in this step as part of this initiative and applied with `gh api --input`. It requires a pull request and the `checks` check, blocks non-fast-forward pushes and deletion, and gives the org admin bypass only through a PR. Run negative tests on a scratch ruleset for `ruleset-probe/*`, as GHM-2.7 did: a direct push to `main` is refused, and a PR without a passing check is blocked.
+- [x] **EGM-1.2** (Done 2026-10-19.
+  - PR #1 run 39345364081 green in 45 seconds on Node 24.21: lint, typecheck, 234 API tests, 38 plugin tests, and the build. Those match the local run in the clean worktree.
+  - Merged as `6245557`, and the `main` push run 39347710378 was green.
+  - CodeQL (GitHub's default setup) also runs on push.) Delete `.forgejo/` in the same PR. Open the PR into `main`, run it until green, and record the run id and its timings. A failure caused by the runner is fixed in the workflow. A real defect gets its own commit and goes to `ERRORS.md`.
+- [x] **EGM-1.3** (Done 2026-10-19 with the owner's approval. `main-protection`, id 25444003, comes from `rulesets/main-protection.json`.
+  - Negative tests:
+    - a scratch ruleset on `ruleset-probe/*` refused a force-push ("Cannot force-push to this branch") and a deletion ("Cannot delete this branch");
+    - a direct push to `main` was refused ("Changes must be made through a pull request. Required status check "checks" is expected."), and `main` stayed at `6245557`;
+    - probe PR #2 into `main` without a passing check showed `mergeStateStatus: BLOCKED`, `viewerCanMergeAsAdmin: false`, and the merge was refused.
+  - Cleaned up: PR #2 closed, the scratch ruleset and probe branches deleted. Only `main-protection` remains.
+  - The stale `forge/ci` branch from Forgejo PR #1 is still on GitHub; delete it at EGM-3.) **Owner approval:** the `main` ruleset, from `rulesets/main-protection.json`, written in this step as part of this initiative and applied with `gh api --input`. It requires a pull request and the `checks` check, blocks non-fast-forward pushes and deletion, and gives the org admin bypass only through a PR. Run negative tests on a scratch ruleset for `ruleset-probe/*`, as GHM-2.7 did: a direct push to `main` is refused, and a PR without a passing check is blocked.
 
 **Acceptance:**
 - CI is green on the PR and on the push to `main`.
