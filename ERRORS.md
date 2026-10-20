@@ -4,7 +4,7 @@ Durable follow-up log for concrete errors found during sessions and left unresol
 
 ## Unresolved
 
-- [ ] 2026-10-19 16:41 PDT - repo dependencies (`pnpm-lock.yaml`) - GitHub Dependabot reports 76 vulnerable dependency alerts on the default branch: 1 critical, 31 high, 39 moderate, 5 low
+- [ ] 2026-10-19 16:41 PDT - repo dependencies (`pnpm-lock.yaml`) - GitHub Dependabot reports 76 vulnerable dependency alerts on the default branch: 1 critical, 31 high, 39 moderate, 5 low. The re-scan after the transfer to monolith-cx reported **91: 3 critical, 40 high, 44 moderate, 4 low** (push of `72f7551`, 2026-10-19)
   - Observed via: the GitHub push notice on the first push to the public repo (EGM-0.4, `32bb2db..e07f189`), pointing at `https://github.com/monolith-cx/monolith-docs-editor/security/dependabot`.
   - Impact: the editor is not deployed anywhere today (EDIT-4 and EDIT-6 notes), so nothing is exposed right now. It must be triaged before the EDIT-6.6 VPS stand-up. The repo is public, so the alerts are visible to anyone with access to the security tab.
   - Left unresolved because: dependency upgrades are outside EGM-0's cutover scope. Triage them in their own branch before EDIT-6.6, the way monolith-docs handled its audit failure (PR #2), and add an audit gate to the EGM-1 CI if the owner wants one.
