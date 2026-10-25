@@ -181,7 +181,7 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
   - Caddy, including its error-log decision;
   - the watchdog's cron line and the `health-check.sh` entry.
 - **Before the first deploy:**
-  - the editor image: EGM-2 (this repo's `github-migration`) adds the `Images` workflow, which pushes `ghcr.io/monolith-cx/editor-api:<sha>`, and names it in the compose fragment; the image path is ready once that PR is merged and the first run (owner-approved) records a digest;
+  - the editor image: EGM-2 (this repo's `github-migration`) adds the `Images` workflow, which pushes `ghcr.io/monolith-cx/editor-api:<sha>`, and names it in the compose fragment. The image path is ready (EGM-2.2, 2026-10-25): the first image is `ghcr.io/monolith-cx/editor-api:43784d4ac36ac1818e983a392be35b71ad866023@sha256:622275c39c7df9c57365f908e8a83b404ed8e83e3cc595f8a2df715d8027c4f1`, and the package is private, so the box needs the token pull;
   - the box's pull: Platform FEX-4.1, `vps-deploy.sh`'s short-lived GHCR pull (no login kept on the box); until it lands, the runbook's by-hand pull;
   - a decision on Caddy's error log for this host (`ERRORS.md`).
 - **Cloudflare (EDIT-4.2):** still blocked.

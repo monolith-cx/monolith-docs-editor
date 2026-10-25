@@ -70,6 +70,7 @@ The editor does **not** consume `@monolith-platform/*` packages: no `package.jso
   - Recommended: leave it public. The source is AGPL and public, and the image holds no secrets.
   - The alternative: set it to private in the package settings right after the first push, and record how long it was public.
   - The VPS's short-lived `packages: read` pull works either way.
+  - **Decided 2026-10-25: private.** The first push (EGM-2.2) came up private, not public, and was never public. The owner chose to keep it private, so nothing was changed in the package settings and every pull needs a token.
 - The VPS pulls with the deploy job's short-lived token (FEX-4.1).
 - There is nothing to copy from Forgejo, because no image exists there.
 
