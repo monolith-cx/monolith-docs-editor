@@ -2,7 +2,7 @@
 # docs/adr/2026-10-18-editor-hosting.md). This is the fragment the VPSM runbook merges into
 # /srv/monolith/<env>/docker-compose.yml, following Platform's playbooks/vps-runtime.md: pinned
 # images, restart policy, memory limits, env files generated from 1Password (never committed), the
-# environment's own network. Replace <env> (dev, prod), <registry>, and <sha> at deploy time;
+# environment's own network. Replace <env> (dev, prod) and <sha> at deploy time;
 # README.md is the runbook.
 #
 # Names: each service carries the environment (`editor-api-dev`), like every service on the box, so
@@ -14,8 +14,8 @@
 services:
   editor-documentserver-<env>:
     # The pinned release, by tag and digest (ADR 2026-10-17, E2), from Docker Hub: a third-party image
-    # outside the box's registry rule (Artifact Registry in the playbook, GHCR after the Forgejo exit;
-    # ADR 2026-10-18, decision 5). Changed only through a battery run, by the deployer, never by vps-deploy.sh.
+    # outside the box's registry rule (GHCR since the Forgejo exit; ADR 2026-10-18, decision 5).
+    # Changed only through a battery run, by the deployer, never by vps-deploy.sh.
     image: onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
     # JWT_SECRET only: the same value as the API's ONLYOFFICE_JWT_SECRET.
     env_file: [env/editor-documentserver.env]
@@ -57,10 +57,10 @@ services:
       start_period: 120s
 
   editor-api-<env>:
-    # <registry>: GHCR under the monolith-cx org, per Platform's Forgejo exit (owner-approved
-    # 2026-10-18; Artifact Registry rejected). Its editor child (FEX-2.4) sets the exact name and does
-    # the cutover; the VPS's GHCR login is FEX-3.
-    image: <registry>/editor-api:<sha>
+    # Built, smoke-run, and pushed by .github/workflows/images.yml (EGM-2), tagged with the full
+    # commit SHA. Pin the digest the run reports: ghcr.io/monolith-cx/editor-api:<sha>@sha256:<digest>.
+    # The box pulls with a short-lived token and keeps no login (Platform FEX-4.1; README, Images).
+    image: ghcr.io/monolith-cx/editor-api:<sha>
     # Secrets and per-environment values (editor-api.env.example lists the names).
     env_file: [env/editor-api.env]
     environment:
