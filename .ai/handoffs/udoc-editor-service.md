@@ -1,6 +1,6 @@
 # Handoff — Editor Service for Unified Document Authoring (EDIT)
 
-- **Updated:** 2026-10-18
+- **Updated:** 2026-10-25
 - **Lane / status:** active / `active` (owner-approved 2026-10-16)
 - **Parent:** Platform ecosystem initiative `unified-document-authoring` (UDOC), phase UDOC-1. EDIT-*n* implements UDOC-1.*n*.
 - **Plan:** `.ai/initiatives/active/udoc-editor-service/plan.md` · **Guidance:** `guidance.md` (local decisions E1–E8)
@@ -181,7 +181,8 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
   - Caddy, including its error-log decision;
   - the watchdog's cron line and the `health-check.sh` entry.
 - **Before the first deploy:**
-  - the editor image in GHCR under `monolith-cx` (Platform's Forgejo exit, owner-approved 2026-10-18; its editor child FEX-2.4 does the cutover) and the VPS's GHCR login (FEX-3);
+  - the editor image: EGM-2 (this repo's `github-migration`) adds the `Images` workflow, which pushes `ghcr.io/monolith-cx/editor-api:<sha>`, and names it in the compose fragment; the image path is ready once that PR is merged and the first run (owner-approved) records a digest;
+  - the box's pull: Platform FEX-4.1, `vps-deploy.sh`'s short-lived GHCR pull (no login kept on the box); until it lands, the runbook's by-hand pull;
   - a decision on Caddy's error log for this host (`ERRORS.md`).
 - **Cloudflare (EDIT-4.2):** still blocked.
 - **DeepSeek reviewer:** unavailable until `op` is signed in on this host.
@@ -199,8 +200,8 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
 ## Next step
 
-- Commit EDIT-6.1–6.5 with Josh's approval.
-- Then EDIT-6.6, the VPS stand-up, step by step with Josh's approval per the runbook.
+- EDIT-6.1–6.5 are committed and on GitHub `main`. `main` is protected since EGM-1: every change lands by PR with the `checks` check green.
+- Then EDIT-6.6, once EGM-2 and FEX-4.1 are done, the VPS stand-up, step by step with Josh's approval per the runbook.
 - Then EDIT-6.7, the acceptance: a stub consumer on `monolith-dev`, the editor with its panel through `editor-dev.monolith.cx`, a signed save verified, and F2's save-URL origin.
 
 ## Follow-ups noted
@@ -210,17 +211,17 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 - EDIT-6:
   - The in-process limiters must move before running several API instances.
   - DOC-DPP's working-tree Phase 4 (another session's, uncommitted) still describes GCE; its owner reconciles it with E9.
-  - CI for the editor image and `vps-deploy.sh` with `--no-deps` belong to DOC-DPP and to the Forgejo exit's editor child (FEX-2.4, not yet drafted; another session's).
+  - The editor image's CI is EGM-2 (`.github/workflows/images.yml`); `vps-deploy.sh` with `--no-deps` is still open (DOC-DPP, and Platform's FEX-4.1 for the pull).
   - The font-generation memory peak and large-document conversions were not measured; watch them on the box.
   - `standalone-app`'s plan and guidance (another session's files) still describe the default `API_INTERNAL_URL` as `http://api:3020`; since EDIT-6.2 it is `http://editor-api:3020`. Their owner reconciles it.
 - ADR F16's question, whether the plugin can withdraw "Remove content control", was not probed at EDIT-5 and stays open. UDOC-3's D16 validation is the control either way.
 
 ## Commit state
 
-- Committed on `main`, not pushed: `0158323`, `9f54904`, `28a27d9`, `dfbb48e`, `5e5baba`, `c7bfa21` (EDIT-2, with Josh's approval 2026-10-18; Platform `61babd8`).
+- Committed on `main`, and on GitHub since EGM-0.4 (2026-10-19): `0158323`, `9f54904`, `28a27d9`, `dfbb48e`, `5e5baba`, `c7bfa21` (EDIT-2, with Josh's approval 2026-10-18; Platform `61babd8`).
 - `0f70bf0` (EDIT-3, with Josh's approval 2026-10-18; Platform `eb4b8ab`).
 - `381d50b` (EDIT-5, with Josh's approval 2026-10-18; Platform `5c83e07`).
-- `deca209` (EDIT-6.1–6.5, with Josh's approval 2026-10-18; Platform `9fc33ff`). After it: the image registry corrected to GHCR (Platform's Forgejo exit, committed as `5edb756` while EDIT-6 was in review), and this line; both uncommitted, awaiting Josh's approval.
+- `deca209` (EDIT-6.1–6.5, with Josh's approval 2026-10-18; Platform `9fc33ff`). After it: the image registry corrected to GHCR (Platform's Forgejo exit `5edb756`), committed as `44d097b`. From 2026-10-25 the EDIT-6.6 prerequisites cite EGM-2 and FEX-4.1, through the EGM-2 PR.
 - Older sessions' uncommitted work stays out:
   - `.ai/handoffs/standalone-app.md` and `.ai/iddp/config.json`;
   - the standalone-app plan and its review files;

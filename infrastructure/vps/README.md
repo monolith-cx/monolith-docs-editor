@@ -32,19 +32,27 @@ environment's network.
 
 ## Images
 
-- **The API:** built from this repository's root with `apps/api/Dockerfile` (no private packages:
-  the repository is AGPL and has none), tagged with the commit SHA, and pushed to GHCR under the
-  `monolith-cx` org, per Platform's Forgejo exit (initiative `forgejo-exit`, owner-approved
-  2026-10-18: images go to GHCR, Artifact Registry is rejected, the Forgejo registry goes away on
-  2026-10-31). Its editor child (FEX-2.4, not yet drafted) sets the exact image name, the CI, and the
-  cutover; the VPS's GHCR login and `vps-deploy.sh`'s allowlist are FEX-3. The fragment names it
-  `<registry>/editor-api:<sha>`, and the stand-up waits for that. Until CI exists, the build is the
-  deployer's:
+- **The API:** `ghcr.io/monolith-cx/editor-api:<sha>`, built from this repository's root with
+  `apps/api/Dockerfile` (no private packages: the repository is AGPL and has none) by the `Images`
+  workflow (`.github/workflows/images.yml`, EGM-2). It runs by hand from `main` only, in the
+  `images` Environment, with `GITHUB_TOKEN`; it starts the image and checks `/health` before it
+  pushes, never pushes a tag that already exists, and reports the digest in the run summary. The
+  tag is the full commit SHA; pin the fragment's image line to `…:<sha>@sha256:<digest>`. Images
+  go to GHCR per Platform's Forgejo exit (owner-approved 2026-10-18; Artifact Registry rejected).
+- **Pulling on the box** follows Platform's FEX-4.1 pattern: no `docker login` stays on the VPS. A
+  `packages: read` token arrives on stdin, is used through a temporary `DOCKER_CONFIG` for the one
+  pull, and the directory is deleted. Until FEX-4.1 lands in `vps-deploy.sh`, the deployer does the
+  same by hand, with Josh's approval, in a subshell so the temporary login is removed even when
+  the pull fails. The token is never an argument or an inline `echo`: paste it when `docker login`
+  waits on stdin (then Ctrl-D), or pipe it from a command that does not print it (`op read …`).
+  If the package is public (EGM-2.2, guidance E4), skip the login and pull directly.
   ```bash
-  docker build -f apps/api/Dockerfile -t <registry>/editor-api:$(git rev-parse --short=12 HEAD) .
-  docker push <registry>/editor-api:$(git rev-parse --short=12 HEAD)
+  (
+    export DOCKER_CONFIG="$(mktemp -d)"; trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+    docker login ghcr.io -u <github-user> --password-stdin   # a token with read:packages
+    docker pull ghcr.io/monolith-cx/editor-api:<sha>@sha256:<digest>
+  )
   ```
-  Build only from a clean, committed tree; the tag is the commit it was built from.
 - **DocumentServer:** the pinned release by tag and digest, from Docker Hub
   (`onlyoffice/documentserver:10.0.0.1@sha256:ca17…`). The playbook still says "Artifact Registry
   only", which the Forgejo exit replaces with GHCR; either way this is a third-party image pulled by
@@ -100,7 +108,7 @@ environment's network.
 
 ## Deploying a new API image
 
-1. Build and push the image (above).
+1. Run the `Images` workflow on `main` and pull the reported digest (above).
 2. Repin `editor-api-dev`'s image line and `docker compose -p monolith-dev up -d --no-deps editor-api-dev`,
    then the checks. `--no-deps` matters: without it, `up` also converges DocumentServer, so any edit
    to its block since the last start would recreate it and drop every open editor. (`vps-deploy.sh`

@@ -1,0 +1,118 @@
+# The editor-api container image (EGM-2.1). It builds apps/api/Dockerfile from
+# the repo root, smoke-runs the loaded image, and only then pushes the
+# SHA-pinned tag to GHCR. DocumentServer is not built here: it is pulled from
+# Docker Hub by tag and digest (ADR 2026-10-18-editor-hosting.md, decision 5).
+#
+# Rules (shared with monolith-docs' images.yml):
+#   * Manual only. It never runs on pull_request or push.
+#   * The job runs in the `images` GitHub Environment, whose deployment-branch
+#     policy admits only main. That policy is the real gate: a dispatch from any
+#     other branch, including one carrying an edited copy of this file, cannot run
+#     the push job. The `if:` below is a second, cheaper refusal.
+#   * Every action is pinned to a full commit SHA (the monolith-cx org requires it).
+#   * The only credential is GITHUB_TOKEN, and it reaches only docker/login-action,
+#     which logs out in its post step. The build needs no secret: the repo is AGPL
+#     and installs nothing private.
+#   * No ${{ }} interpolation inside any `run:` body; values pass through env.
+#   * Nothing is pushed until the smoke run has passed, and a tag already in GHCR
+#     is never pushed again: a deployed tag must never change under the box.
+
+name: Images
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: images-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    if: github.ref == 'refs/heads/main'
+    environment: images
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_TAG: ghcr.io/monolith-cx/editor-api:${{ github.sha }}
+      DOCKER_BUILD_SUMMARY: 'false'
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the API image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          load: true
+          push: false
+          provenance: false
+          tags: ${{ env.IMAGE_TAG }}
+          labels: org.opencontainers.image.source=https://github.com/monolith-cx/monolith-docs-editor
+
+      # The image must start and answer /health. EDITOR_ENV=local needs only a seal key,
+      # generated here and thrown away with the container; /health needs no DocumentServer
+      # but does load dist/fixtures/sample.docx at start, so a missing fixture fails here.
+      # No port is published, the container has no network, and the probe runs inside it.
+      - name: Smoke the API image
+        run: |
+          set -euo pipefail
+          key="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))")"
+          ctr="$(docker run -d --network none -e EDITOR_ENV=local -e EDITOR_SEAL_KEYS="$key" "$IMAGE_TAG")"
+          trap 'docker rm -f "$ctr" >/dev/null' EXIT
+          for _ in $(seq 1 30); do
+            if body="$(docker exec "$ctr" wget -qO- http://127.0.0.1:3020/health 2>/dev/null)"; then
+              echo "health: $body"
+              [ "$body" = '{"status":"ok"}' ] && exit 0
+              echo "unexpected /health body"; exit 1
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' "$ctr")" != true ]; then
+              echo "the container exited:"; docker logs "$ctr" 2>&1 | tail -n 40; exit 1
+            fi
+            sleep 1
+          done
+          echo "no /health answer in 30 s:"; docker logs "$ctr" 2>&1 | tail -n 40; exit 1
+
+      # Last, so a broken image never reaches the registry: the smoke run gates it.
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the SHA-pinned tag
+        run: |
+          set -euo pipefail
+          # Only a registry "not found" counts as absent; any other inspect failure stops
+          # the job rather than risking an overwrite of a tag the box may be running.
+          code=0; out="$(docker buildx imagetools inspect "$IMAGE_TAG" 2>&1)" || code=$?
+          if [ "$code" -eq 0 ]; then
+            echo "$IMAGE_TAG already exists in GHCR; not pushing it again."
+            note="already in GHCR: built and smoked, not pushed by this run"
+          elif printf '%s' "$out" | grep -qiE 'not found|manifest unknown'; then
+            docker push "$IMAGE_TAG"
+            note="pushed by this run"
+          else
+            echo "Could not tell whether $IMAGE_TAG exists:"; printf '%s\n' "$out"; exit 1
+          fi
+          # The digest comes from the registry, so it is what a pull will get.
+          ref="ghcr.io/monolith-cx/editor-api@$(docker buildx imagetools inspect "$IMAGE_TAG" --format '{{.Manifest.Digest}}')"
+          echo "$IMAGE_TAG -> $ref ($note)"
+          {
+            echo "### editor-api image"
+            echo
+            echo "| Tag | Digest ref | Note |"
+            echo "|---|---|---|"
+            echo "| \`$IMAGE_TAG\` | \`$ref\` | $note |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -4,9 +4,9 @@
 **Abbreviation:** EGM
 **Owner:** josh
 **Parent:** monolith-platform `forgejo-exit` (FEX-3.4). Sibling: monolith-docs `github-migration` (GHM).
-**Status:** Active. Drafted 2026-10-19; plan review PASS-WITH-NITS, every finding applied. **EGM-0.1–0.7 done 2026-10-19** with the owner's approval: the source of truth is `monolith-cx/monolith-docs-editor` (public), and `main` is at `e07f189`. **EGM-1 done 2026-10-19:** CI is green on GitHub Actions, `.forgejo/` is gone, and the `main` ruleset is active with its negative tests recorded. Still open: EGM-0.8, the Forgejo export (due by 10-27), and EGM-2 and EGM-3.
+**Status:** Active. Drafted 2026-10-19; plan review PASS-WITH-NITS, every finding applied. **EGM-0.1–0.7 done 2026-10-19** with the owner's approval: the source of truth is `monolith-cx/monolith-docs-editor` (public), and `main` is at `e07f189`. **EGM-1 done 2026-10-19:** CI is green on GitHub Actions, `.forgejo/` is gone, and the `main` ruleset is active with its negative tests recorded. **EGM-0.8 done 2026-10-25:** the Forgejo export is in `monolith-cx/forgejo-archive` (`929965d`) and the Forgejo repo is archived. **EGM-2 in progress:** the workflow, the fragment, and the EDIT pointers are in PR (2.1, 2.3, 2.4); 2.2 (create the `images` Environment, run, visibility) waits for the owner. Then EGM-3.
 **Hard deadline:** 2026-10-31
-**Last updated:** 2026-10-19
+**Last updated:** 2026-10-25
 **Guidance:** [guidance.md](./guidance.md)
 
 **Owner approval** marks every push, transfer, mirror or key change, ruleset, secret, or registry setting. The exact command is written here before it runs.
@@ -20,9 +20,9 @@
 
 | Ref | Phase | Target | Depends on | Status |
 |---|---|---|---|---|
-| EGM-0 | First push and cutover into `monolith-cx` | 2026-10-20 | — | **0.1–0.7 done 2026-10-19**; 0.8 (export) open |
+| EGM-0 | First push and cutover into `monolith-cx` | 2026-10-20 | — | **Done** (0.1–0.7 2026-10-19; 0.8 2026-10-25) |
 | EGM-1 | CI on GitHub Actions and the `main` ruleset | 2026-10-22 | EGM-0 | **Done 2026-10-19** |
-| EGM-2 | `editor-api` image to GHCR | 2026-10-24 | EGM-1; FEX-4.1 for the VPS pull | Planned |
+| EGM-2 | `editor-api` image to GHCR | 2026-10-24 | EGM-1; FEX-4.1 for the VPS pull | **In progress**: 2.1, 2.3, 2.4 in PR; 2.2 awaits the owner |
 | EGM-3 | Doc sweep and close | 2026-10-28 | EGM-2 | Planned |
 
 **Reviewers:** Sonnet for each checkpoint; DeepSeek, Sonnet, and Codex at the close. Only workflow YAML and docs are reviewed; this repo has no customer data.
@@ -58,7 +58,11 @@
   git branch -u origin/main main
   git remote set-head origin -a
   ```
-- [ ] **EGM-0.8** **Owner approval, by 2026-10-27 at the latest, because it needs a live Forgejo:** export Forgejo's PRs (#1 and any others), issues, and releases as JSON into `monolith-cx/forgejo-archive`, as GHM-0.3 did. Archive the Forgejo repo read-only only after the export is confirmed.
+- [x] **EGM-0.8** (Done 2026-10-25 with the owner's approval.
+  - A read-only export through the API with `forgejo-api-claude` (token in a 0600 header file, never on a command line or printed): 14 JSON files (repo, branches, tags, pulls, issues, comments, releases, wiki, reviews, review comments, push mirrors, action runs, secret and variable names only).
+  - Found: one pull request (#1 `forge/ci` → `main`, merged), no issues, releases, tags, or wiki, no push mirror (deleted at EGM-0.3), two `checks` runs; Forgejo `main` `32bb2db` is an ancestor of GitHub `main` (checked).
+  - Committed with a README in GHM-0.3's format to `monolith-cx/forgejo-archive` `monolith-docs-editor/2026-10-25-forgejo-export/`, commit `929965d`, pushed.
+  - Then the Forgejo repo was archived through the API (`PATCH` `archived: true`); a re-read returned `archived: true`, `archived_at` 2026-10-25T20:32:34Z.) **Owner approval, by 2026-10-27 at the latest, because it needs a live Forgejo:** export Forgejo's PRs (#1 and any others), issues, and releases as JSON into `monolith-cx/forgejo-archive`, as GHM-0.3 did. Archive the Forgejo repo read-only only after the export is confirmed.
 
 **Acceptance:**
 - GitHub `main` equals the merged local `main`, reached without force.
@@ -99,7 +103,7 @@
 
 ## EGM-2 `editor-api` image to GHCR
 
-- [ ] **EGM-2.1** Write `.github/workflows/images.yml`:
+- [x] **EGM-2.1** (Written 2026-10-25, in PR. SHA pins as Docs' `images.yml` (setup-buildx v4.4.1, build-push v7.4.0, login v3.7.0, checkout v4.4.0); a tag already in GHCR is never pushed again, and only a registry "not found" counts as absent; the digest goes in the run summary. Proven locally: the Dockerfile builds from the filtered context (the `scripts/editor-battery` workspace entry does not break `--filter @monolith-docs/api...`), the smoke step's commands answer `{"status":"ok"}` after 2 s, and without a seal key the container exits with the configuration error, which the step reports. actionlint 1.7.7 clean, shellcheck included. Checkpoint review: Sonnet PASS-WITH-NITS, every finding resolved (`reviews/review-egm-2-attempt-1-sonnet.md`). The `images` Environment does not exist yet: it is created in 2.2, before the first run, because a job naming a missing Environment creates it with no branch policy.) Write `.github/workflows/images.yml`:
   - `workflow_dispatch` (and later a push to `main`, if the owner wants that);
   - `environment: images`, whose branch policy admits only `main`. **Owner approval** to create it;
   - `permissions: { contents: read, packages: write }`;
@@ -107,9 +111,9 @@
   - the build context is the repo root with `-f apps/api/Dockerfile`. `.dockerignore` strips `docs`, `infrastructure`, `scripts`, `apps/web`, `.ai`, and `.git`, and the first build proves that the filtered install still works with `pnpm-workspace.yaml` listing `scripts/editor-battery`;
   - `load: true`, then a smoke run. Start the container detached with `EDITOR_ENV=local` and a throwaway `EDITOR_SEAL_KEYS` generated in the job (the format is in `config.ts` `parseSealKeys`; `local` still requires a seal key). Run `docker exec <ctr> wget -qO- http://127.0.0.1:3020/health` with no published port. `/health` needs no DocumentServer, but it does read `dist/fixtures/sample.docx`. Then `docker push`;
   - the tag `ghcr.io/monolith-cx/editor-api:<sha>`, `provenance: false`, and the label `org.opencontainers.image.source=https://github.com/monolith-cx/monolith-docs-editor`.
-- [ ] **EGM-2.2** **Owner approval:** run it, and record the digest. Check the package's visibility **immediately**. It probably comes up public, inherited from the repo. Apply the owner's E4 decision in the package settings (a UI step), and record it.
-- [ ] **EGM-2.3** Repoint `infrastructure/vps/docker-compose.editor.yml:63` to `ghcr.io/monolith-cx/editor-api:<sha>`, changing only the image line and its comments at lines 17 and 60–62, which cite the old "FEX-2.4" and registry wording (guidance E5). In `infrastructure/vps/README.md`, the pull section states the FEX-4.1 short-lived pull: no `docker login` stays on the box.
-- [ ] **EGM-2.4** Tell EDIT: one line in its handoff saying that the image path for EDIT-6.6 is ready.
+- [ ] **EGM-2.2** **Owner approval:** first create the `images` Environment with a custom branch policy admitting only `main` (as Docs' `images` Environment, which admits `dev` and `main`); then, after the PR is merged, run it from `main`, and record the digest. Check the package's visibility **immediately**. It probably comes up public, inherited from the repo. Apply the owner's E4 decision in the package settings (a UI step), and record it.
+- [x] **EGM-2.3** (Done 2026-10-25, in PR. The image line is `ghcr.io/monolith-cx/editor-api:<sha>`, pinned by digest at deploy; the DocumentServer comment no longer names Artifact Registry. The README's Images section names the workflow and gives the FEX-4.1 pull: the token on stdin, a temporary `DOCKER_CONFIG`, one pull, the directory deleted. The ADR's item 5 stays for EGM-3.1's supersession note.) Repoint `infrastructure/vps/docker-compose.editor.yml:63` to `ghcr.io/monolith-cx/editor-api:<sha>`, changing only the image line and its comments at lines 17 and 60–62, which cite the old "FEX-2.4" and registry wording (guidance E5). In `infrastructure/vps/README.md`, the pull section states the FEX-4.1 short-lived pull: no `docker login` stays on the box.
+- [x] **EGM-2.4** (Done 2026-10-25, in PR. EDIT's plan (EDIT-6 files bullet and 6.6) and handoff (before the first deploy, next step, follow-ups, commit state) cite EGM-2 and FEX-4.1 instead of "FEX-2.4" and "FEX-3", and say that `main` takes changes by PR only.) Tell EDIT: one line in its handoff saying that the image path for EDIT-6.6 is ready.
 
 **Acceptance:**
 - The image is built and pushed by the workflow with `GITHUB_TOKEN`, and it passed the smoke run.
