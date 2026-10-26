@@ -4,7 +4,7 @@
 **Abbreviation:** EGM
 **Owner:** josh
 **Parent:** monolith-platform `forgejo-exit` (FEX-3.4). Sibling: monolith-docs `github-migration` (GHM).
-**Status:** Active. Drafted 2026-10-19; plan review PASS-WITH-NITS, every finding applied. **EGM-0.1–0.7 done 2026-10-19** with the owner's approval: the source of truth is `monolith-cx/monolith-docs-editor` (public), and `main` is at `e07f189`. **EGM-1 done 2026-10-19:** CI is green on GitHub Actions, `.forgejo/` is gone, and the `main` ruleset is active with its negative tests recorded. **EGM-0.8 done 2026-10-25:** the Forgejo export is in `monolith-cx/forgejo-archive` (`929965d`) and the Forgejo repo is archived. **EGM-2 done 2026-10-25:** the `Images` workflow (PR #4) built, smoked, and pushed `ghcr.io/monolith-cx/editor-api:43784d4…@sha256:622275c3…`; the package is private by the owner's decision. Next: EGM-3.
+**Status:** Active. Drafted 2026-10-19; plan review PASS-WITH-NITS, every finding applied. **EGM-0.1–0.7 done 2026-10-19** with the owner's approval: the source of truth is `monolith-cx/monolith-docs-editor` (public), and `main` is at `e07f189`. **EGM-1 done 2026-10-19:** CI is green on GitHub Actions, `.forgejo/` is gone, and the `main` ruleset is active with its negative tests recorded. **EGM-0.8 done 2026-10-25:** the Forgejo export is in `monolith-cx/forgejo-archive` (`929965d`) and the Forgejo repo is archived. **EGM-2 done 2026-10-25:** the `Images` workflow (PR #4) built, smoked, and pushed `ghcr.io/monolith-cx/editor-api:43784d4…@sha256:622275c3…`; the package is private by the owner's decision. **EGM-3 done 2026-10-25; the initiative is complete** (close PR #6, `73dd2a4`; moved to `complete/`).
 **Hard deadline:** 2026-10-31
 **Last updated:** 2026-10-25
 **Guidance:** [guidance.md](./guidance.md)
@@ -23,7 +23,7 @@
 | EGM-0 | First push and cutover into `monolith-cx` | 2026-10-20 | — | **Done** (0.1–0.7 2026-10-19; 0.8 2026-10-25) |
 | EGM-1 | CI on GitHub Actions and the `main` ruleset | 2026-10-22 | EGM-0 | **Done 2026-10-19** |
 | EGM-2 | `editor-api` image to GHCR | 2026-10-24 | EGM-1; FEX-4.1 for the VPS pull | **Done** 2026-10-25 (image pushed; package private by decision) |
-| EGM-3 | Doc sweep and close | 2026-10-28 | EGM-2 | Planned |
+| EGM-3 | Doc sweep and close | 2026-10-28 | EGM-2 | **Done 2026-10-25** |
 
 **Reviewers:** Sonnet for each checkpoint; DeepSeek, Sonnet, and Codex at the close. Only workflow YAML and docs are reviewed; this repo has no customer data.
 
@@ -131,7 +131,7 @@
   - ADR `docs/adr/2026-10-18-editor-hosting.md`: item 5 gets a dated supersession note pointing at FEX and EGM.
   - `.ai/handoffs/udoc-editor-service.md`: one pointer line only.
 - [x] **EGM-3.2** (Done 2026-10-25; the matches and their reasons are in **EGM-3.2 grep proof** below. No live reference remains.) Grep proof: `grep -rIniE "forgejo|altuslabs\.dev|pkg\.dev|altus-labs-dev/monolith-docs-editor" --exclude-dir={node_modules,.git}`. Only historical records may match; list each one with its reason.
-- [ ] **EGM-3.3** (In progress 2026-10-25. Acceptance evidence below; handoff `.ai/handoffs/github-migration.md` written. Close review attempt 1: Sonnet and Codex PASS-WITH-NITS, every finding fixed or answered; DeepSeek could not run (a 401 in the review transport, while the provider test passes) (`reviews/review-egm-3-close-attempt-1.md`). Remaining: the close PR, the owner-approved deletion of the stale `forge/ci` branch and the merged EGM branches, the FEX report, the move to `complete/`.) Close: acceptance items 1–6 with evidence, the close review (DeepSeek, Sonnet, Codex), doc sync, and the handoff `.ai/handoffs/github-migration.md`. Report to FEX-3.4 and FEX-5.
+- [x] **EGM-3.3** (Done 2026-10-25. Close review attempt 1: Sonnet and Codex PASS-WITH-NITS, every finding fixed or answered; DeepSeek could not run (a 401 in the review transport, while the provider test passes) (`reviews/review-egm-3-close-attempt-1.md`). The close PR #6 passed `checks` and CodeQL and was merged as `73dd2a4` with the owner's approval. Branches deleted on GitHub with the owner's approval (each confirmed an ancestor of `main` first; every delete answered 204): `forge/ci` (the old Forgejo-era PR #1), `ci/egm-1-github-actions`, `ci/egm-2-images`, `docs/egm-2-2-record`, and, after the merge, `docs/egm-3-close`; `main` is the only branch. Reported to Platform FEX-3.4 and FEX-5. Moved to `complete/`.) Close: acceptance items 1–6 with evidence, the close review (DeepSeek, Sonnet, Codex), doc sync, and the handoff `.ai/handoffs/github-migration.md`. Report to FEX-3.4 and FEX-5.
 
 ### EGM-3.2 grep proof
 
@@ -139,7 +139,7 @@ Run 2026-10-25 on `docs/egm-3-close`. Every match is a historical record, an ini
 
 | Where | Why it stays |
 |---|---|
-| `.ai/initiatives/active/github-migration/` (plan, guidance, reviews) | This initiative's own record of the move: the old origin, the transfer command, the mirror and key deletions. |
+| `.ai/initiatives/complete/github-migration/` (plan, guidance, reviews; `active/` when the proof ran) | This initiative's own record of the move: the old origin, the transfer command, the mirror and key deletions. |
 | `.ai/registry.yml:62,67` | `parent_ecosystem_initiative: forgejo-exit` is Platform's initiative id; the notes are EGM's history. |
 | `.github/workflows/ci.yml:2,42` | Provenance comments: the workflow was ported from the retired job, and keeps its corepack choice. |
 | `infrastructure/vps/README.md:41,58`, `infrastructure/vps/docker-compose.editor.yml:17`, `docs/adr/2026-10-18-editor-hosting.md:58,60`, `.ai/initiatives/active/udoc-editor-service/plan.md:358` | "Forgejo exit" names Platform's initiative (FEX), which decided GHCR; README:58 states correctly that the playbook's "Artifact Registry only" line is still unedited (Platform FEX-5). The ADR's item 5 carries the supersession note. |
@@ -152,10 +152,10 @@ Run 2026-10-25 on `docs/egm-3-close`. Every match is a historical record, an ini
 
 1. `main` descends from `d778652` (`git merge-base --is-ancestor d778652 origin/main`), pushed as a fast-forward at EGM-0.4; the push mirror was deleted (EGM-0.3) and the repo has 0 deploy keys (`gh api …/keys`, 2026-10-25).
 2. `monolith-cx/monolith-docs-editor` is `PUBLIC`, not archived, default branch `main`; local `origin` is `git@github.com:monolith-cx/monolith-docs-editor.git`. (A local remote named `forgejo` still points at the archived repo; removing it is local config, offered to the owner.)
-3. CI: run 40251304932 (push to `main`, `5e80087`) succeeded, and every merged PR (#1, #3–#5) passed `checks` (#2 was the ruleset probe, closed unmerged); ruleset `main-protection` is `active`, its negative tests are in EGM-1.3; `.forgejo/` does not exist.
+3. CI: run 40251304932 (push to `main`, `5e80087`) succeeded, and every merged PR (#1, #3–#6) passed `checks` (#2 was the ruleset probe, closed unmerged); ruleset `main-protection` is `active`, its negative tests are in EGM-1.3; `.forgejo/` does not exist.
 4. Run 40233680582 pushed `ghcr.io/monolith-cx/editor-api:43784d4…@sha256:622275c3…` (EGM-2.2); the fragment names `ghcr.io/monolith-cx/editor-api:<sha>`.
 5. EGM-3.1 and EGM-3.2 above.
-6. Pending: items 1–5 hold on 2026-10-25; the initiative closes with the close review and the FEX report, before 2026-10-31.
+6. Items 1–5 held on 2026-10-25 at the close; the close review passed and the FEX report was made the same day, before the 2026-10-31 deadline.
 
 ## Inventory
 

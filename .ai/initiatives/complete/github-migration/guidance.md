@@ -5,9 +5,9 @@
 **Owner:** josh
 **Parent:** monolith-platform `.ai/ecosystem/initiatives/active/forgejo-exit` (FEX), step FEX-3.4. The parent owns the org, the registry, and VPS-pull decisions. This child carries out the editor's side.
 **Sibling:** monolith-docs `github-migration` (GHM). The steps here follow GHM's, where it has already proved them.
-**Status:** Active. Drafted 2026-10-19 at the owner's direction ("draft the monolith-docs-editor child initiative … including merging Forgejo main into local main and the first push to GitHub. Ask me before any push"). Plan review: PASS-WITH-NITS (Sonnet, 2026-10-19), every finding applied (`reviews/review-plan-attempt-1.md`).
+**Status:** Complete 2026-10-25 (close PR #6, `73dd2a4`). Drafted 2026-10-19 at the owner's direction ("draft the monolith-docs-editor child initiative … including merging Forgejo main into local main and the first push to GitHub. Ask me before any push"). Plan review: PASS-WITH-NITS (Sonnet, 2026-10-19), every finding applied (`reviews/review-plan-attempt-1.md`).
 **Hard deadline:** 2026-10-31. The Forgejo host at `git.altuslabs.dev` goes away.
-**Last updated:** 2026-10-25 (EGM-0 to EGM-2 done; EGM-3 closing. The source of truth is GitHub `monolith-cx/monolith-docs-editor`, and the old origin is archived.)
+**Last updated:** 2026-10-25 (EGM-0 to EGM-3 done; the initiative is complete. The source of truth is GitHub `monolith-cx/monolith-docs-editor`, and the old origin is archived.)
 
 ---
 
