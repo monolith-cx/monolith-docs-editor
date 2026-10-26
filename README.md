@@ -1,6 +1,6 @@
 # Monolith Docs Editor
 
-> **Repo split (2026-09-02):** this repo was renamed from `monolith-docs` to `monolith-docs-editor`. It is the AGPL OnlyOffice-backed headless editing service only. The proprietary Monolith Docs product (e-signature and the customer app) lives in the private `monolith-docs` repo on Forgejo and talks to this service over HTTP. Origin is Forgejo (`git.altuslabs.dev:2222`); GitHub is a public push mirror.
+> **Repo split (2026-09-02):** this repo was renamed from `monolith-docs` to `monolith-docs-editor`. It is the AGPL OnlyOffice-backed headless editing service only. The proprietary Monolith Docs product (e-signature and the customer app) lives in the private `monolith-cx/monolith-docs` repo on GitHub and talks to this service over HTTP. Since 2026-10-19 (EGM-0) the source of truth is GitHub `monolith-cx/monolith-docs-editor` (public, AGPL); `main` takes changes by pull request with the `checks` check green (`.github/workflows/ci.yml`, EGM-1), and the manual `Images` workflow pushes `ghcr.io/monolith-cx/editor-api:<sha>` (EGM-2). The old self-hosted origin is archived (EGM-0.8).
 
 
 Open-source document editing service built on [OnlyOffice DocumentServer](https://www.onlyoffice.com/developer-edition.aspx). It provides browser-based DOCX editing with real-time collaboration and integrates with external applications over a lightweight API boundary.
@@ -10,8 +10,8 @@ Open-source document editing service built on [OnlyOffice DocumentServer](https:
 **Prerequisites:** Docker, Docker Compose, Node.js 24+, pnpm 10+
 
 ```bash
-git clone https://github.com/altus-labs-dev/monolith-docs-editor.git
-cd monolith-docs
+git clone https://github.com/monolith-cx/monolith-docs-editor.git
+cd monolith-docs-editor
 corepack enable
 cp .env.example .env
 docker compose up -d
