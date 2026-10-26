@@ -45,7 +45,7 @@ environment's network.
   same by hand, with Josh's approval, in a subshell so the temporary login is removed even when
   the pull fails. The token is never an argument or an inline `echo`: paste it when `docker login`
   waits on stdin (then Ctrl-D), or pipe it from a command that does not print it (`op read …`).
-  If the package is public (EGM-2.2, guidance E4), skip the login and pull directly.
+  The package is private (owner's decision at EGM-2.2, guidance E4), so the login is always needed.
   ```bash
   (
     export DOCKER_CONFIG="$(mktemp -d)"; trap 'rm -rf "$DOCKER_CONFIG"' EXIT
