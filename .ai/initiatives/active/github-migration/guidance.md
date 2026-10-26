@@ -7,13 +7,13 @@
 **Sibling:** monolith-docs `github-migration` (GHM). The steps here follow GHM's, where it has already proved them.
 **Status:** Active. Drafted 2026-10-19 at the owner's direction ("draft the monolith-docs-editor child initiative … including merging Forgejo main into local main and the first push to GitHub. Ask me before any push"). Plan review: PASS-WITH-NITS (Sonnet, 2026-10-19), every finding applied (`reviews/review-plan-attempt-1.md`).
 **Hard deadline:** 2026-10-31. The Forgejo host at `git.altuslabs.dev` goes away.
-**Last updated:** 2026-10-19
+**Last updated:** 2026-10-25 (EGM-0 to EGM-2 done; EGM-3 closing. The source of truth is GitHub `monolith-cx/monolith-docs-editor`, and the old origin is archived.)
 
 ---
 
 ## Why this initiative exists
 
-The editor repo still treats Forgejo as its source of truth.
+On 2026-10-19 the editor repo still treated Forgejo as its source of truth. The table is that day's state, kept as the record: EGM-0 to EGM-2 resolved rows 1–4, and EGM-3 resolves row 5.
 
 | # | Dependency | State on 2026-10-19 | What fails without Forgejo |
 |---|---|---|---|

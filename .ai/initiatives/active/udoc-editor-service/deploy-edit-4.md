@@ -30,7 +30,7 @@ Drafted 2026-10-16 for Josh's approval. The steps below were never run. Every st
 ## Preconditions (Josh)
 
 - [ ] `gcloud auth login` (interactive; the stored token expired, and a session cannot prompt). The project is `monolith-docs`.
-- [ ] Approve the push of `main` (`0158323`, `9f54904`) to Forgejo `origin`. Forgejo push-mirrors it to the public GitHub mirror, which the VMs clone from (`startup.sh:14`). The repo is AGPL and the mirror is public by design.
+- [ ] (Superseded 2026-10-25: those commits reached GitHub `monolith-cx/monolith-docs-editor` at EGM-0.4, the old origin is archived, and `startup.sh:14` clones from `monolith-cx`.) Approve the push of `main` (`0158323`, `9f54904`) to Forgejo `origin`. Forgejo push-mirrors it to the public GitHub mirror, which the VMs clone from (`startup.sh:14`). The repo is AGPL and the mirror is public by design.
 - [ ] Approve each **[changes env]** and **[irreversible]** group below. Answering "yes to the runbook" approves all of them in order. Anything unexpected at a check stops the run for a new decision.
 
 ## 0. Read-only survey
