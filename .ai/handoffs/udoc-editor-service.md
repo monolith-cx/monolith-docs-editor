@@ -1,6 +1,6 @@
 # Handoff — Editor Service for Unified Document Authoring (EDIT)
 
-- **Updated:** 2026-10-25
+- **Updated:** 2026-10-31
 - **Lane / status:** active / `active` (owner-approved 2026-10-16)
 - **Parent:** Platform ecosystem initiative `unified-document-authoring` (UDOC), phase UDOC-1. EDIT-*n* implements UDOC-1.*n*.
 - **Plan:** `.ai/initiatives/active/udoc-editor-service/plan.md` · **Guidance:** `guidance.md` (local decisions E1–E8)
@@ -15,9 +15,25 @@
 | EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed | `c7bfa21` |
 | EDIT-3 (UDOC-1.3) | Code-complete 2026-10-18; not deployed | `0f70bf0` |
 | EDIT-5 (UDOC-1.5) | Code-complete 2026-10-18; not deployed | `381d50b` |
-| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6–6.7 (the VPS stand-up and acceptance) await Josh's approval step by step | `deca209` |
+| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6–6.7 not started: prerequisites checked 2026-10-31, dependency triage on `fix/edit-deps-triage` (not merged) | `deca209` |
 
 EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
+
+### 2026-10-31: stand-up prerequisites and the dependency triage
+
+- A new session leads UDOC as a whole. It checked the EDIT-6.6 prerequisites read-only (plan, EDIT-6.6 status) and changed nothing on the VPS, DNS, 1Password, or Secret Manager.
+- **Ready:**
+  - the image path;
+  - the box's pull (FEX-4.1's `vps-deploy.sh` installed at `/srv/monolith/bin/`, identical to Platform's, `editor-api-<env>` bound);
+  - about 15 GiB free on the box.
+- **Dependency triage,** branch `fix/edit-deps-triage`, worktree `~/dev/monolith-docs-editor-deps`, not committed:
+  - The API dropped its unused Prisma dependency.
+  - fastify 5.12.7, `@fastify/static` 10, vitest 4 with vite 7.3.7, turbo, Prisma 7.10.1, and an esbuild pin.
+  - `pnpm audit --prod`: 67 findings (24 high) to 2 accepted moderates (`glob` and `minimatch` under `@fastify/static`, unreachable; `minimatch` under eslint, dev only).
+- **Fastify 5.12 ignores a `TRUST_PROXY` hop count.** The API refuses one, a new test proves a trusted proxy's `X-Forwarded-For` reaches `req.ip`, and the VPS template, the ADR, and the runbook name Caddy's network subnet.
+- **Verified:** 235 API tests, 38 plugin tests, typecheck, lint, compose files, the image build and `/health`, and battery `docs/spikes/results/10.0.0.1/2026-10-31-partial-2000` (18 items: S0–S2, E2a–E2e, E3a–E3b, E5a–E5f, E6a, E6d; all pass; built before the review's doc and range fixes, which changed no running code).
+- **Review:** Sonnet attempt 1 PASS-WITH-NITS, every finding applied.
+- **Errors:** no new unresolved errors. The Dependabot entry in `ERRORS.md` was updated and stays open until the merge and Dependabot's own recount.
 
 ### What EDIT-2 changed
 
@@ -113,7 +129,7 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
   - `config.json` carries CORS for DocumentServer.
   - nginx has `location /plugins/udoc-bridge/`.
 - **`TRUST_PROXY`:**
-  - The value is proxy addresses or CIDRs, a named private range, or a hop count of at most 3.
+  - The value is proxy addresses or CIDRs, or a named private range. (A hop count was accepted until 2026-10-31; Fastify 5.12 ignores one, so the API now refuses it.)
   - It is judged on the function `@fastify/proxy-addr` (Fastify's own, now a direct dependency) compiles from it. An unparseable entry, an IPv6 range broader than /32, or anything covering more than one IPv4 /8 is refused.
   - `X-Forwarded-Host` is dropped before anything reads it.
 - **Docs:**
@@ -200,6 +216,14 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
   - **Updated entries:** DocumentServer's logs (retention is the image's logrotate) and the F17 converter (recovery built and proven). Both stay open until deployed.
 
 ## Next step
+
+- **As of 2026-10-31:**
+  1. Merge `fix/edit-deps-triage` by PR.
+  2. Run `Images` on `main` and pin the new digest.
+  3. Josh rules on `standalone-app` Phase 0's gate and says how root steps on the box run.
+  4. EDIT-6.6 step by step.
+  5. EDIT-6.7, with a stub consumer that has https origins.
+- **Earlier (2026-10-25):**
 
 - EDIT-6.1–6.5 are committed and on GitHub `main`. `main` is protected since EGM-1: every change lands by PR with the `checks` check green.
 - Then EDIT-6.6, once EGM-2 and FEX-4.1 are done, the VPS stand-up, step by step with Josh's approval per the runbook.

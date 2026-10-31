@@ -152,7 +152,8 @@ describe('Hostname binding behind a trusted proxy (EDIT-5 review)', () => {
   it('ignores X-Forwarded-Host, so trusting the proxy for addresses cannot move a request to another consumer', async () => {
     const { config } = await import('./config.js');
     const trust = config.trustProxy;
-    config.trustProxy = 1;
+    // inject() connects from 127.0.0.1: the proxy is trusted, so only the dropped header protects the binding.
+    config.trustProxy = '127.0.0.1';
     try {
       const app = freshApp([
         { id: 'connect', name: 'Connect', auth: { mode: 'api-key', key: 'connect-key' }, hostname: 'connect.example' },
@@ -167,6 +168,24 @@ describe('Hostname binding behind a trusted proxy (EDIT-5 review)', () => {
       expect(spoofed.statusCode).toBe(401);
       const honest = await app.inject({ method: 'POST', url: '/api/documents/open', headers: { host: 'crm.example', authorization: 'Bearer crm-key' }, payload });
       expect(honest.statusCode).toBe(200);
+    } finally {
+      config.trustProxy = trust;
+    }
+  });
+});
+
+describe('Client addresses behind the trusted proxy (EDIT-6.6, Fastify 5.12)', () => {
+  it('takes the forwarded address only from the named proxy, so the limiter sees each browser', async () => {
+    const { config } = await import('./config.js');
+    const trust = config.trustProxy;
+    config.trustProxy = '10.0.0.2';
+    try {
+      const app = freshApp();
+      app.get('/__ip-probe', async (req) => ({ ip: req.ip }));
+      const viaProxy = await app.inject({ method: 'GET', url: '/__ip-probe', remoteAddress: '10.0.0.2', headers: { 'x-forwarded-for': '198.51.100.7' } });
+      expect(viaProxy.json()).toEqual({ ip: '198.51.100.7' });
+      const forged = await app.inject({ method: 'GET', url: '/__ip-probe', remoteAddress: '203.0.113.9', headers: { 'x-forwarded-for': '198.51.100.7' } });
+      expect(forged.json()).toEqual({ ip: '203.0.113.9' });
     } finally {
       config.trustProxy = trust;
     }

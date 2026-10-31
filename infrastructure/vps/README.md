@@ -41,9 +41,11 @@ environment's network.
   go to GHCR per Platform's Forgejo exit (owner-approved 2026-10-18; Artifact Registry rejected).
 - **Pulling on the box** follows Platform's FEX-4.1 pattern: no `docker login` stays on the VPS. A
   `packages: read` token arrives on stdin, is used through a temporary `DOCKER_CONFIG` for the one
-  pull, and the directory is deleted. Until FEX-4.1 lands in `vps-deploy.sh`, the deployer does the
-  same by hand, with Josh's approval, in a subshell so the temporary login is removed even when
-  the pull fails. The token is never an argument or an inline `echo`: paste it when `docker login`
+  pull, and the directory is deleted. FEX-4.1 is installed: `/srv/monolith/bin/vps-deploy.sh` on the
+  box matched Platform's `docs/ecosystem/playbooks/vps-scripts/vps-deploy.sh` on 2026-10-31, and its
+  GHCR table binds `editor-api-<env>` to `ghcr.io/monolith-cx/editor-api` only. The first stand-up
+  still pulls by hand (below), with Josh's approval, in a subshell so the temporary login is removed
+  even when the pull fails, because the script's `up -d <svc>` runs without `--no-deps`. The token is never an argument or an inline `echo`: paste it when `docker login`
   waits on stdin (then Ctrl-D), or pipe it from a command that does not print it (`op read …`).
   The package is private (owner's decision at EGM-2.2, guidance E4), so the login is always needed.
   ```bash
@@ -66,7 +68,9 @@ environment's network.
 1. **Secrets** (1Password, then the env files, then Google Secret Manager in `monolith-docs`, together):
    the DocumentServer JWT secret, the seal key, and one notification secret per consumer. The env
    files are `env/editor-api.env` (from `editor-api.env.example`) and `env/editor-documentserver.env`
-   (`JWT_SECRET=` the API's `ONLYOFFICE_JWT_SECRET`), both 0600.
+   (`JWT_SECRET=` the API's `ONLYOFFICE_JWT_SECRET`), both 0600. `TRUST_PROXY` is the
+   `monolith-dev` network's subnet, read with `docker network inspect` (the template says how); the
+   API refuses a hop count.
 2. **DNS:** `editor-dev.monolith.cx` to the VPS, like the other `-dev` hosts.
 3. **Files:** `local-production-linux.json` to `/srv/monolith/dev/editor/onlyoffice/`; the fragment
    merged into `/srv/monolith/dev/docker-compose.yml` with `<env>` = `dev` and `<sha>` the API image;

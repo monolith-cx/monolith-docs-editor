@@ -5,15 +5,11 @@ WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/api/package.json ./apps/api/
-COPY packages/db/package.json ./packages/db/
-COPY packages/db/index.js ./packages/db/
-COPY packages/db/index.d.ts ./packages/db/
 RUN pnpm install --frozen-lockfile --filter @monolith-docs/api...
 
 FROM deps AS build
 
 COPY apps/api/ ./apps/api/
-COPY packages/db/ ./packages/db/
 RUN pnpm --filter @monolith-docs/api run build
 
 FROM node:24-alpine AS runtime
@@ -25,9 +21,6 @@ ENV NODE_ENV=production
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/api/package.json ./apps/api/
-COPY packages/db/package.json ./packages/db/
-COPY packages/db/index.js ./packages/db/
-COPY packages/db/index.d.ts ./packages/db/
 RUN pnpm install --frozen-lockfile --prod --filter @monolith-docs/api...
 
 COPY --from=build /workspace/apps/api/dist/ ./apps/api/dist/
