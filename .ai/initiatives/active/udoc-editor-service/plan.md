@@ -4,7 +4,7 @@
 **Abbreviation:** EDIT
 **Owner:** josh
 **Status:** Active — drafted 2026-10-16; plan review attempt 1 **FAIL** (3 High, 12 Medium, 8 Nit), attempt 2 **PASS-WITH-NITS** (9 Medium, 7 Nit; `reviews/review-plan-attempt-{1,2}.md`), every finding applied the same day; **owner-approved 2026-10-16** with parent amendments A1–A5; moved to `active/`. EDIT-4 code-complete and checkpoint-reviewed 2026-10-16 (`reviews/review-edit-4-attempt-{1,2,3}.md`: FAIL, PASS-WITH-NITS, PASS-WITH-NITS; every finding applied), not deployed. EDIT-1 done 2026-10-18 (committed `dfbb48e`; review attempt 2 PASS-WITH-NITS, applied; U13 waived by Josh). EDIT-2 code-complete 2026-10-18 (two reviewers, Sonnet and Codex substituting for DeepSeek: attempts 1 and 2 FAIL, attempt 3 PASS-WITH-NITS from both, every finding applied, attempt-4 verification PASS-WITH-NITS, nits applied; `reviews/review-edit-2-*.md`), not deployed. EDIT-3 code-complete 2026-10-18 (Sonnet + Codex: attempt 1 PASS-WITH-NITS and FAIL, attempt 2 PASS-WITH-NITS and FAIL, attempt 3 PASS-WITH-NITS and PASS, every finding applied; `reviews/review-edit-3-*.md`; ADR F17 found and mitigated), not deployed. EDIT-5 code-complete 2026-10-18 (Sonnet + Codex: attempts 1 and 2 FAIL from both, attempt 3 PASS-WITH-NITS from both, every finding applied; `reviews/review-edit-5-*.md`; ADR F18), not deployed. EDIT-6: hosting decided by Josh 2026-10-18 (E9, the VPS); 6.1–6.5 code-complete (Sonnet: attempt 1 PASS-WITH-NITS, every finding applied; attempt 2 PASS-WITH-NITS (2 Low, 9 nits, all applied); ADR `2026-10-18-editor-hosting.md`); next: EDIT-6.6, the stand-up, with Josh's approval per step.
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-31
 **Guidance:** [guidance.md](./guidance.md)
 **Parent ecosystem initiative:** `unified-document-authoring` (UDOC), phase UDOC-1 — `~/dev/monolith-platform/.ai/ecosystem/initiatives/active/unified-document-authoring/plan.md`
 **Numbering:** EDIT-*n* implements UDOC-1.*n*; EDIT-0 is this initiative's charter.
@@ -373,6 +373,22 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 - Prerequisites: the editor image in GHCR (EGM-2, this repo's `github-migration`) and the box's short-lived GHCR pull (Platform FEX-4.1). Changes to this repo land on `main` by PR only (EGM-1's ruleset). Then the DocumentServer JWT, the seal keys, the consumer credentials, and the notification secrets for dev in 1Password, the VPS env file, and Google Secret Manager (`monolith-docs` project), together. DNS for `editor-dev.monolith.cx`, the Caddy block, the images pushed, the services started per the runbook, and the watchdog's cron line installed.
 - Monitoring: the watchdog's cron line; both containers added to the box's `health-check.sh` critical list; cron mail checked deliverable; DocumentServer's memory and `OOMKilled` watched over its first font generation (E6c did not measure that peak). Caddy's error log for this host decided (ERRORS.md, 2026-10-18).
 - Reachability: the API reaches DocumentServer and the consumers' hosts; DocumentServer reaches the API by compose name; browsers reach `editor-dev.monolith.cx`; CRM dev reaches the API by compose name.
+- **Status (2026-10-31): not started; prerequisites checked.** Nothing on the VPS, DNS, 1Password, or Secret Manager has changed.
+  - **Ready:**
+    - The image path (EGM-2.2). No API code changed after the first image, but the triage below needs a new image.
+    - The box's pull: Platform FEX-4.1 is installed. `/srv/monolith/bin/vps-deploy.sh` is byte-identical to Platform's copy, and its GHCR table binds `editor-api-<env>`. The first stand-up still pulls by hand, because the script's `up -d` has no `--no-deps`.
+    - Room: about 15 GiB free on the box.
+  - **Dependency triage** (required by `ERRORS.md` before this step): branch `fix/edit-deps-triage`.
+    - `pnpm audit --prod` went from 67 findings (24 high) to 2 accepted moderates. The API dropped its unused `@monolith-docs/db` (Prisma), and fastify, `@fastify/static`, vitest, turbo, and Prisma were bumped.
+    - **Fastify 5.12 ignores a `TRUST_PROXY` hop count**, which would have put every browser in Caddy's rate-limit bucket. The API now refuses one, and the VPS template names Caddy's network subnet (`monolith-dev` was `172.19.0.0/16`; ADR decision 7 amended).
+    - Verified: 235 API tests, 38 plugin tests, typecheck, lint, both battery compose files, the image build with `/health`, and battery `docs/spikes/results/10.0.0.1/2026-10-31-partial-2000` (18 items: S0–S2, E2a–E2e, E3a–E3b, E5a–E5f, E6a, E6d; all pass; built before the review's doc and range fixes, which changed no running code).
+    - Review: Sonnet attempt 1 PASS-WITH-NITS, every finding applied (`reviews/review-edit-6-deps-triage-attempt-1-sonnet.md`).
+  - **Owner decisions before the stand-up:**
+    - `standalone-app` Phase 0's deploy gate (EDIT-0.2): close or re-baseline it. Its gates assume the deleted GCE host.
+    - How root steps on the box run (`health-check.sh` and `/etc/cron.d`).
+    - DNS for `editor-dev.monolith.cx`: no record yet, Cloudflare zone.
+    - Caddy's error log for the host.
+  - **For EDIT-6.7:** the stub consumer's panel page loads in the browser, and its source files must pass the service's URL checks, so both need https origins outside the box network. A4's "a stub receiver on the network" does not cover that. It is designed at 6.7.
 
 ### EDIT-6.7 Acceptance (parent UDOC-1.6)
 - The editor opens from `crm-dev` with the panel loaded and a signed save notification reaches CRM. Under amendment A4 (approved 2026-10-16), a stub receiver on the `monolith-dev` network (verifying the signature with the guide's reference verifier) satisfies this at UDOC-1.6, and CRM's own receiver is proven at UDOC-3.3.

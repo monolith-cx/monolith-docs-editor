@@ -62,10 +62,11 @@ export interface Config {
 
   uploadDir: string;
   /**
-   * Which proxies' forwarded addresses to believe (Fastify `trustProxy`): a hop count or a list of
-   * addresses/CIDRs, never "everyone", which would let a client choose its own address for the limiter.
+   * Which proxies' forwarded addresses to believe (Fastify `trustProxy`): a list of addresses/CIDRs,
+   * never "everyone", which would let a client choose its own address for the limiter, and never a hop
+   * count, which Fastify 5.12 ignores (it trusts no proxy, since a hop count cannot check the peer).
    */
-  trustProxy: number | string | false;
+  trustProxy: string | false;
   /** The bridge plugin's files (EDIT-5): `apps/plugin` in the repository and in the image. */
   pluginDir: string;
   uploadTtlMs: number;
@@ -97,16 +98,15 @@ function parseSealKeys(raw: string | undefined): Buffer[] {
   return parseList(raw).map((k) => Buffer.from(k, 'base64url'));
 }
 
-function parseTrustProxy(raw: string | undefined): number | string | false {
+function parseTrustProxy(raw: string | undefined): string | false {
   const v = raw?.trim();
-  if (!v) return false;
-  if (/^\d+$/.test(v)) return Number(v);
-  return v;
+  return v ? v : false;
 }
 
 /**
- * What is wrong with a TRUST_PROXY list, judged on the function Fastify itself will compile from it
- * (`@fastify/proxy-addr`), so a parse here cannot disagree with Fastify's: an entry it cannot parse
+ * What is wrong with a TRUST_PROXY list, judged entry by entry on the function `@fastify/proxy-addr`
+ * compiles (Fastify splits the list on commas and compiles the same entries, so a parse here cannot
+ * disagree with Fastify's): a hop count (Fastify 5.12 ignores one), an entry it cannot parse
  * (Fastify would throw at boot), an IPv6 range broader than /32, or any entry that covers addresses
  * in two different IPv4 /8 blocks. That last test is exact for "broader than /8" (a range of /7 or
  * wider holds two adjacent /8 blocks whole, a /8 or narrower lies inside one) and catches every form
@@ -115,6 +115,8 @@ function parseTrustProxy(raw: string | undefined): number | string | false {
  */
 export function trustProxyProblem(list: string): string | null {
   for (const entry of list.split(',').map((e) => e.trim())) {
+    // Fastify 5.12 ignores a hop count and trusts no proxy, so the limiter would see only the proxy.
+    if (/^\d+$/.test(entry)) return 'TRUST_PROXY must name the proxy by address or CIDR, not a hop count (Fastify ignores hop counts and trusts no proxy)';
     // proxy-addr's named private ranges: fixed, and never public addresses.
     if (entry === 'loopback' || entry === 'linklocal' || entry === 'uniquelocal') continue;
     let trust: (addr: string, i: number) => boolean;
@@ -128,7 +130,8 @@ export function trustProxyProblem(list: string): string | null {
       return 'TRUST_PROXY must name the proxies, never everyone (no IPv6 range broader than /32)';
     }
     const blocks = new Set<number>();
-    for (let octet = 0; octet < 256; octet++) if (trust(`${octet}.0.0.1`, 0)) blocks.add(octet);
+    // Both forms an IPv4 client arrives in: plain, and IPv4-mapped on a dual-stack socket.
+    for (let octet = 0; octet < 256; octet++) if (trust(`${octet}.0.0.1`, 0) || trust(`::ffff:${octet}.0.0.1`, 0)) blocks.add(octet);
     if (blocks.size > 1) return 'TRUST_PROXY must name the proxies, never everyone (no range that covers more than one IPv4 /8)';
   }
   return null;
@@ -235,8 +238,7 @@ export function configProblems(cfg: Config, rawEditorEnv: string | undefined): s
   if (cfg.maxConvertOutputBytes > DEFAULT_MAX_SOURCE_BYTES) problems.push(`EDITOR_MAX_CONVERT_OUTPUT_BYTES must be at most ${DEFAULT_MAX_SOURCE_BYTES}`);
   // A Cloudflare-proxied request is held open 100 s; past that the consumer never gets the answer.
   if (cfg.convertTimeoutMs > 95_000) problems.push('EDITOR_CONVERT_TIMEOUT_MS must be at most 95000 (a proxied request is held open 100 s)');
-  if (typeof cfg.trustProxy === 'number' && cfg.trustProxy > 3) problems.push('TRUST_PROXY hop count must be at most 3');
-  const trustProblem = typeof cfg.trustProxy === 'string' ? trustProxyProblem(cfg.trustProxy) : null;
+  const trustProblem = cfg.trustProxy ? trustProxyProblem(cfg.trustProxy) : null;
   if (trustProblem) problems.push(trustProblem);
   if (cfg.convertConcurrency > cfg.convertConcurrencyTotal) problems.push('EDITOR_CONVERT_CONCURRENCY must not exceed EDITOR_CONVERT_CONCURRENCY_TOTAL');
   if (cfg.notifyTimeoutMs >= 600_000) problems.push("EDITOR_NOTIFY_TIMEOUT_MS must stay below DocumentServer's 10-minute callback timeout");

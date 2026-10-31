@@ -11,3 +11,10 @@ onlyBuiltDependencies:
   - esbuild
   - prisma
   - sharp
+
+# Security pin for a transitive dependency (EDIT-6.6 dependency triage, 2026-10-31): esbuild is
+# vite's bundler, test tooling only, never in the API image. 0.28.1 fixes a low advisory. Remove
+# the pin once vite's own range resolves to a patched esbuild. (vite itself is declared next to
+# vitest in apps/api and apps/plugin, because pnpm overrides do not reach auto-installed peers.)
+overrides:
+  esbuild: ">=0.28.1 <0.29"
