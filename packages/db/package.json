@@ -18,11 +18,11 @@
     "migrate:reset": "prisma migrate reset"
   },
   "dependencies": {
-    "@prisma/client": "^7.7.0"
+    "@prisma/client": "^7.10.1"
   },
   "devDependencies": {
     "dotenv": "^16.4.0",
-    "prisma": "^7.7.0"
+    "prisma": "^7.10.1"
   },
   "engines": {
     "node": ">=24"

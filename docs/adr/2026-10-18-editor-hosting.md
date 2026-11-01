@@ -62,10 +62,11 @@
 
 6. **One API instance per environment.** The rate, source-read, and conversion limiters are in process.
 
-7. **Proxy trust: `TRUST_PROXY=1`**, one hop (Caddy).
+7. **Proxy trust: Caddy, by its network subnet** (was `TRUST_PROXY=1`, one hop; see the 2026-10-31 note).
    - Callers on the box connect directly and send no forwarded header.
    - A caller on the box that forged one could choose only its own rate-limit identity.
    - `X-Forwarded-Host` is dropped regardless (EDIT-5).
+   - **Superseded in part, 2026-10-31 (EDIT-6.6 dependency triage).** Fastify 5.12 ignores a hop count and trusts no proxy, since a count cannot check the immediate peer. With `TRUST_PROXY=1` every browser would reach the API as Caddy and share one rate-limit bucket. The API now refuses a hop count at startup. `TRUST_PROXY` names the environment's network subnet (`monolith-dev` was `172.19.0.0/16` on 2026-10-31), because Caddy's address on it changes when its container is recreated. The exposure is unchanged: only a caller on that network can send a believed header, and it can choose only its own rate-limit identity.
 
 8. **State and logs.**
    - DocumentServer 10.0.0.1 runs no PostgreSQL, RabbitMQ, or Redis of its own; it runs only `docservice`, `converter`, nginx, and cron (checked on the pinned image). Its on-disk state is in the image's declared directories, mounted as named volumes so a recreate keeps them: `/var/www/onlyoffice/Data`, `/var/lib/onlyoffice`, and `/var/log/onlyoffice`.

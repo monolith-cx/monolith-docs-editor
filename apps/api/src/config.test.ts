@@ -60,9 +60,12 @@ describe('config (E4)', () => {
     expect([defaults.sourceTimeoutMs, defaults.sourceConcurrency, defaults.convertTimeoutMs, defaults.convertConcurrency, defaults.convertConcurrencyTotal]).toEqual([30_000, 4, 90_000, 2, 4]);
   });
 
-  it('takes TRUST_PROXY as a hop count or addresses, never everyone (EDIT-5.1)', () => {
+  it('takes TRUST_PROXY as addresses, never everyone and never a hop count (EDIT-5.1, EDIT-6.6)', () => {
     expect(loadConfig({}).trustProxy).toBe(false);
-    expect(loadConfig({ TRUST_PROXY: '1' }).trustProxy).toBe(1);
+    // Fastify 5.12 ignores a hop count and trusts no proxy: refused so it can never fail silently.
+    for (const hops of ['1', '3', '4', '1, 10.0.0.5']) {
+      expect(configProblems(loadConfig({ ...strong, TRUST_PROXY: hops }), undefined).join(' ')).toContain('not a hop count');
+    }
     expect(loadConfig({ TRUST_PROXY: '10.0.0.5, 127.0.0.1' }).trustProxy).toBe('10.0.0.5, 127.0.0.1');
     expect(configProblems(loadConfig({ ...strong, TRUST_PROXY: '10.0.0.0/8, 127.0.0.1' }), undefined).join(' ')).not.toContain('TRUST_PROXY');
     for (const proxies of ['172.18.0.0/16', '10.0.0.0/8', 'loopback, uniquelocal', '::1', 'fd00::/64', '10.1.2.3/255.255.255.0']) {
@@ -70,8 +73,13 @@ describe('config (E4)', () => {
     }
     // Everyone, in every form Fastify would accept: wildcards, broad ranges, a netmask, and IPv6
     // ranges that cover the IPv4-mapped space Fastify matches IPv4 clients against.
-    for (const everyone of ['0.0.0.0/1', '0.0.0.0/7', '0.0.0.0/128.0.0.0', '::/16', '::/32', '::/80', '::ffff:0:0/96', '::ffff:0.0.0.0/96', '::ffff:0:0/100', '10.0.0.1, 0.0.0.0/1', '4']) {
+    for (const everyone of ['0.0.0.0/1', '0.0.0.0/7', '0.0.0.0/128.0.0.0', '::/16', '::ffff:0:0/96', '::ffff:0.0.0.0/96', '::ffff:0:0/100', '10.0.0.1, 0.0.0.0/1']) {
       expect(configProblems(loadConfig({ ...strong, TRUST_PROXY: everyone }), undefined).join(' ')).toContain('TRUST_PROXY');
+    }
+    // Judged on the function Fastify compiles: since @fastify/proxy-addr 5.1.2, IPv4-compatible
+    // ranges match no IPv4 client, plain or mapped, so they no longer trust everyone.
+    for (const ipv4Compatible of ['::/32', '::/80']) {
+      expect(trustProxyProblem(ipv4Compatible)).toBeNull();
     }
     // What Fastify cannot parse is reported here instead of crashing the boot.
     for (const malformed of ['true', '*', 'all', '0.0.0.0/0', '::/0', '10.0.0.1,', '10.0.0.1, proxy.internal', '10.0.0.0/33', 'fd00::/255.0.0.0']) {
