@@ -4,7 +4,7 @@ High-level feature and delivery status lives here. Detailed execution state live
 
 ## Repo Split (2026-09-02)
 
-This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. The Monolith Docs product (e-signature, customer app, Platform SSO, tRPC, Next.js) moved to the private `monolith-docs` repo under the `esignature-platform` initiative (parent ESIG in Platform). The Standalone App initiative below was re-scoped on 2026-10-16: Phase 0 (workspace restructure and headless parity) stays here; Phases 1 through 7 are superseded by the new repo, and the editor-service work they implied is now the EDIT initiative (UDOC-1).
+This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. The Monolith Docs product (e-signature, customer app, Platform SSO, tRPC, Next.js) moved to the private `monolith-docs` repo under the `esignature-platform` initiative (parent ESIG in Platform). The Standalone App initiative was re-scoped on 2026-10-16 to its Phase 0 and archived on 2026-10-31: the restructure is done, its GCE parity gate is superseded, and the editor-service work it implied is the EDIT initiative (UDOC-1).
 
 ## Active
 
@@ -16,13 +16,6 @@ This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. Th
 - Plan: `.ai/initiatives/active/udoc-editor-service/plan.md`
 - Guidance: `.ai/initiatives/active/udoc-editor-service/guidance.md`
 
-### Standalone App (re-scoped 2026-10-16: Phase 0 only)
-
-- Status: `in_progress`
-- Summary: Re-scoped to Phase 0 (workspace restructure and headless parity), which is locally code-complete with its `fastmail-connect` verification gate still open. Phases 1–7 (standalone product surface) are superseded: the product moved to the private `monolith-docs` repo, and the editor-service work UDOC needs is in Editor Service for Unified Document Authoring below. SA-1.6 (`hostnameGuard`) and SA-1.7 (editor-page `frame-ancestors`) are candidate follow-ups. The owner (2026-10-16) keeps it active for Phase 0 and archives it once Phase 0 closes.
-- Plan: `.ai/initiatives/active/standalone-app/plan.md`
-- Guidance: `.ai/initiatives/active/standalone-app/guidance.md`
-
 ## Complete
 
 ### Production Hardening
@@ -32,16 +25,19 @@ This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. Th
 - Plan: `.ai/initiatives/complete/production-hardening/plan.md`
 - Guidance: `.ai/initiatives/complete/production-hardening/guidance.md`
 
-## Planning
+## Archive
+
+### Standalone App
+
+- Status: `archived` (2026-10-31)
+- Summary: Re-scoped 2026-10-16 to Phase 0 (the pnpm + Turbo workspace restructure), which is done; its GCE parity gate was superseded when the hosts were deleted and EDIT changed the API. Placeholders removed; SA-1.7 moved to EDIT-2.9; SA-1.6 dropped.
+- Plan: `.ai/initiatives/archive/standalone-app/plan.md`
 
 ### Deploy Pipeline Parity
 
-- Status: `planning`
-- Summary: CI baseline, protected `main`/`dev`, automated GCE deploys, rollback, and dev-environment parity for the standalone-era Docs stack using ecosystem DPP conventions adapted to OnlyOffice on GCE.
-- Plan: `.ai/initiatives/planning/deploy-pipeline-parity/plan.md`
-- Guidance: `.ai/initiatives/planning/deploy-pipeline-parity/guidance.md`
-
-## Archive
+- Status: `archived` (2026-10-31), never started
+- Summary: Targeted the retired GCE stack. CI, the protected `main`, the image build (EGM), and the box's deploy script (Platform FEX-4.1) cover it; automated editor deploys are an EDIT follow-up.
+- Plan: `.ai/initiatives/archive/deploy-pipeline-parity/plan.md`
 
 ### Monolith Docs Foundation And Integration
 

@@ -15,9 +15,18 @@
 | EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed | `c7bfa21` |
 | EDIT-3 (UDOC-1.3) | Code-complete 2026-10-18; not deployed | `0f70bf0` |
 | EDIT-5 (UDOC-1.5) | Code-complete 2026-10-18; not deployed | `381d50b` |
-| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6–6.7 not started: prerequisites checked 2026-10-31, dependency triage on `fix/edit-deps-triage` (not merged) | `deca209` |
+| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6–6.7 not started: prerequisites met 2026-10-31 (triage merged in PR #8; image `5397cf7@sha256:1ccf071f…`); EDIT-2.9 (editor-page framing, from SA-1.7) added before 6.7 | `deca209`, `5397cf7` |
 
 EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
+
+### 2026-10-31 (later): `standalone-app` archived, the image built
+
+- **Owner decisions:** `standalone-app` and `deploy-pipeline-parity` are archived (EDIT-0.2 close-out). Root steps on the box run with the deploy user's passwordless sudo, each command approved by Josh first. Hostnames `editor-dev.monolith.cx` and `editor.monolith.cx`.
+- **Removed:** `packages/db` (an empty Prisma schema) and `apps/web`, Phase 0 placeholders with no runtime use. Prisma's tree (`mysql2`, `valibot`, `deepmerge-ts`, `hono`) left the lockfile with them.
+- **SA-1.7 → EDIT-2.9:** the editor page gains `frame-ancestors` from the session's consumer, before EDIT-6.7. **SA-1.6 dropped:** every consumer shares the editor hostname on the VPS; the signed token identifies the consumer.
+- **Image:** `ghcr.io/monolith-cx/editor-api:5397cf7b2fda42b0ec7c38d81d76f7f6d3ca032a@sha256:1ccf071fb1d3f7d04bd75db1e8816252d2bd3fef44821b1b92c4f615b62feb92` (`Images` run 41268300741).
+- **Dependabot:** not yet rescanned after PR #8 (100 open alerts, all dated before the merge); the `ERRORS.md` entry stays open.
+- **Still open for 6.6:** the `editor-dev` DNS record (Cloudflare tools need `/mcp` authorisation, or Josh adds it) and Caddy's error log.
 
 ### 2026-10-31: stand-up prerequisites and the dependency triage
 
@@ -188,7 +197,7 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
 ## Blockers and open decisions (Josh)
 
-- **Deploy gate:** EDIT-2 changes the headless API: it removes two routes and refuses the legacy shape from profile consumers. `standalone-app` Phase 0 must close or be re-baselined before EDIT-2 is deployed.
+- ~~**Deploy gate:** `standalone-app` Phase 0 must close or be re-baselined before EDIT-2 is deployed.~~ Resolved 2026-10-31: archived by Josh.
 - **No environment exists.** EDIT-6.6 is the stand-up on the VPS (runbook `infrastructure/vps/README.md`), and each step needs Josh's approval:
   - secrets in 1Password, the env files, and Secret Manager;
   - DNS for `editor-dev.monolith.cx`;
@@ -217,12 +226,11 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
 ## Next step
 
-- **As of 2026-10-31:**
-  1. Merge `fix/edit-deps-triage` by PR.
-  2. Run `Images` on `main` and pin the new digest.
-  3. Josh rules on `standalone-app` Phase 0's gate and says how root steps on the box run.
-  4. EDIT-6.6 step by step.
-  5. EDIT-6.7, with a stub consumer that has https origins.
+- **As of 2026-10-31 (later):**
+  1. EDIT-6.6 step by step, each with Josh's approval: secrets, DNS, files, DocumentServer, the API, Caddy (with its error-log decision), monitoring (sudo, each command approved).
+  2. EDIT-2.9 (editor-page framing), its checkpoint, and a new image.
+  3. EDIT-6.7, with a stub consumer that has https origins.
+- **Done since the 2026-10-31 list:** triage merged (PR #8), the image built, `standalone-app` archived, root steps decided.
 - **Earlier (2026-10-25):**
 
 - EDIT-6.1–6.5 are committed and on GitHub `main`. `main` is protected since EGM-1: every change lands by PR with the `checks` check green.
@@ -232,13 +240,11 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 ## Follow-ups noted
 
 - `CLAUDE.md`'s reviewer lines carry another session's uncommitted edit that names MiniMax, which is retired. Reconcile them with `.ai/iddp/config.json` when that edit is resolved.
-- SA-1.7 (editor-page `frame-ancestors`) is still a candidate follow-up; the guide states it.
+- SA-1.7 (editor-page `frame-ancestors`) is EDIT-2.9 since 2026-10-31.
 - EDIT-6:
   - The in-process limiters must move before running several API instances.
-  - DOC-DPP's working-tree Phase 4 (another session's, uncommitted) still describes GCE; its owner reconciles it with E9.
-  - The editor image's CI is EGM-2 (`.github/workflows/images.yml`); `vps-deploy.sh` with `--no-deps` is still open (DOC-DPP, and Platform's FEX-4.1 for the pull).
+  - The editor image's CI is EGM-2 (`.github/workflows/images.yml`); `vps-deploy.sh` with `--no-deps` is still open (a Platform FEX-4.1 follow-up; DOC-DPP is archived).
   - The font-generation memory peak and large-document conversions were not measured; watch them on the box.
-  - `standalone-app`'s plan and guidance (another session's files) still describe the default `API_INTERNAL_URL` as `http://api:3020`; since EDIT-6.2 it is `http://editor-api:3020`. Their owner reconciles it.
 - ADR F16's question, whether the plugin can withdraw "Remove content control", was not probed at EDIT-5 and stays open. UDOC-3's D16 validation is the control either way.
 
 ## Commit state
@@ -247,8 +253,5 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 - `0f70bf0` (EDIT-3, with Josh's approval 2026-10-18; Platform `eb4b8ab`).
 - `381d50b` (EDIT-5, with Josh's approval 2026-10-18; Platform `5c83e07`).
 - `deca209` (EDIT-6.1–6.5, with Josh's approval 2026-10-18; Platform `9fc33ff`). After it: the image registry corrected to GHCR (Platform's Forgejo exit `5edb756`), committed as `44d097b`. From 2026-10-25 the EDIT-6.6 prerequisites cite EGM-2 and FEX-4.1, through the EGM-2 PR.
-- Older sessions' uncommitted work stays out:
-  - `.ai/handoffs/standalone-app.md` and `.ai/iddp/config.json`;
-  - the standalone-app plan and its review files;
-  - `deploy-pipeline-parity/*`, `.gitignore`, and `infrastructure/gce/teardown.sh`;
+- Older sessions' uncommitted work in `~/dev/monolith-docs-editor` stays out: `.ai/iddp/config.json`, `.gitignore`, `infrastructure/gce/teardown.sh`, and its edits to the standalone-app and `deploy-pipeline-parity` files, which were archived on `main` on 2026-10-31 from their committed versions (that checkout reconciles them when it updates);
   - `CLAUDE.md`'s reviewer lines and the other hunks of `.ai/registry.yml`.

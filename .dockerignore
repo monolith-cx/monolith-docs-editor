@@ -8,5 +8,4 @@ dist
 docs
 infrastructure
 scripts
-apps/web
 *.log

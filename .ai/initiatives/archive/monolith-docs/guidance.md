@@ -3,7 +3,7 @@
 Initiative ID: `monolith-docs`
 Created: 2026-03-17
 
-**Archive Note (2026-04-14):** This umbrella initiative is archived. Follow-on work now lives in `.ai/initiatives/complete/production-hardening/` and `.ai/initiatives/active/standalone-app/`.
+**Archive Note (2026-04-14):** This umbrella initiative is archived. Follow-on work now lives in `.ai/initiatives/complete/production-hardening/` and `.ai/initiatives/archive/standalone-app/`.
 
 ---
 

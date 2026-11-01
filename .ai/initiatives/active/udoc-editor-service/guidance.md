@@ -7,7 +7,7 @@
 **Last updated:** 2026-10-16
 **Parent ecosystem initiative:** `unified-document-authoring` (UDOC) in Monolith Platform — `~/dev/monolith-platform/.ai/ecosystem/initiatives/active/unified-document-authoring/{plan,guidance}.md`
 **Implements:** parent phase UDOC-1 (steps UDOC-1.1 to UDOC-1.7), and nothing else
-**Related local initiatives:** `standalone-app` (re-scoped 2026-10-16 to its Phase 0; its Phases 1–7 are superseded; Josh: archive after Phase 0 closes), `deploy-pipeline-parity` (DOC-DPP, planning; EDIT-6 depends on it)
+**Related local initiatives:** `standalone-app` and `deploy-pipeline-parity` (DOC-DPP), both archived 2026-10-31 (EDIT-0.2); `github-migration` (EGM, complete)
 
 ---
 
@@ -35,7 +35,7 @@ The parent's decisions govern this initiative and are **not** re-decided here: D
 - **Serving and framing:** consumer hostnames (`connect.`, `crm.monolithdocs.com`) reach the API through Cloudflare Tunnel; `app.monolithdocs.com` reaches nginx, whose `location /` proxies to DocumentServer. Non-`/api` paths other than `/editor/` get `X-Frame-Options: SAMEORIGIN` (`app.ts:57-59`); the consumer-auth public-path allowlist is in `auth.ts:69-82`; the rate limiter is 100/min per IP without `trustProxy`; the API Dockerfile copies `apps/api` and `packages/db` only; Fastify's `maxParamLength` is the default 100.
 - The legacy upload answers `fileUrl` as `<API_INTERNAL_URL>/api/files/<id><ext>` (`files.ts:84`), an internal http URL.
 - `docker-compose.yml`: `onlyoffice/documentserver:8.3`.
-- `apps/web` and `packages/db` (Prisma) are scaffolds from `standalone-app` Phase 0 with no runtime use; D13 adds **no** database, so neither is used by this initiative.
+- `apps/web` and `packages/db` (Prisma) were scaffolds from `standalone-app` Phase 0 with no runtime use; D13 adds **no** database. Both were removed on 2026-10-31 when `standalone-app` was archived.
 - `docs/spikes/2026-10-contract-sections.md` (untracked): the 2026-10-15/16 spike on 9.4 / 10.0 / 8.3. Its harness was torn down.
 - **No hosted editor exists (found 2026-10-17).** Project `monolith-docs` has no VM or reserved IP; both VMs were stopped around April and deleted on 2026-06-12 to stop spend (`deploy-pipeline-parity/plan.md`, Phase 4 note), with final snapshots kept. `connect.` and `crm.monolithdocs.com` answer Cloudflare 530 (no tunnel connector); `app.` times out. Every consumer flow below is therefore down today.
 - **Callers of the legacy open shape** (their code checked 2026-10-16; the service they call is down, see above): `fastmail-connect` (`billing/packages/api/src/routes/docs-proxy.ts:197-233`: upload, then open with `permissions.edit = false`, no `callbackUrl`) and the Monolith Connect browser extension (`monolith-connect/apps/extension/src/lib/docs-api.ts:43-77`: upload, then open with default permissions, i.e. editable, no `callbackUrl`). Neither calls `/api/documents/:key/download`, `/api/sessions`, or sends `saveTo`. Monolith CRM has no editor integration.

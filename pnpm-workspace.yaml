@@ -1,15 +1,11 @@
 packages:
   - "apps/*"
-  - "packages/*"
   - "scripts/editor-battery"
 
 shamefullyHoist: true
 
 onlyBuiltDependencies:
-  - "@prisma/client"
-  - "@prisma/engines"
   - esbuild
-  - prisma
   - sharp
 
 # Security pin for a transitive dependency (EDIT-6.6 dependency triage, 2026-10-31): esbuild is

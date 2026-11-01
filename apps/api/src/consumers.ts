@@ -261,7 +261,7 @@ export function getHmacConsumers(): Consumer[] {
 /**
  * Find consumers that can authenticate on the given hostname.
  * If any consumers are bound to this hostname, return only those.
- * If none are bound, return consumers with no hostname set (unchanged behaviour; SA-1.6 is a separate follow-up).
+ * If none are bound, return consumers with no hostname set (hostname binding is optional; on the VPS every consumer shares one editor hostname and the signed token identifies it).
  */
 export function findConsumersByHostname(hostname: string): Consumer[] {
   const all = getConsumers();

@@ -43,6 +43,7 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 - Per this repo's `ROADMAP.md` repo-split note: `standalone-app` keeps Phase 0 (workspace restructure and headless parity) and its open Phase 0 gates; Phases 1–7 are **superseded** (the product surface moved to the private `monolith-docs` repo; the editor-service pieces UDOC needs are here). SA-1.6 (`hostnameGuard`, production-strict `findConsumersByHostname`) and SA-1.7 (`allowedFrameAncestors` on the editor page) are **not** in UDOC-1's scope and are recorded as candidate follow-ups. Phase 0 must close (or its Track A matrix be re-baselined: the `/api/documents/:key/download` and `/api/sessions` items are removed by EDIT-2) before EDIT-2 is deployed, because EDIT-4 and EDIT-2 change the headless API Phase 0 verifies. Josh (2026-10-16): keep `standalone-app` active for Phase 0, archive it once Phase 0 closes.
 - Acceptance: `standalone-app`'s plan, guidance, registry entry, and ROADMAP entry say Phase 0 only, with Phases 1–7 superseded, the two follow-ups named, and the ordering note; no blocker still describes Phase 1 as pending work.
 - Status: Done 2026-10-16.
+- **Closed 2026-10-31 (owner decision):** `standalone-app` and `deploy-pipeline-parity` are archived. Phase 0's restructure is done; its GCE parity gate is superseded by EDIT's tests, the battery, and EDIT-6.7. `packages/db` and `apps/web`, the Phase 0 placeholders, are removed. SA-1.7 is EDIT-2.9; SA-1.6 is dropped (on the VPS every consumer shares the editor hostname; the signed token identifies the consumer). The ordering note above no longer blocks EDIT-2's deploy.
 
 ### EDIT-0.3 Proposed parent amendments (owner)
 - **A1 (E1):** the legacy open shape stays until `fastmail-connect` and the Connect extension migrate (parent UDOC-1.2 says "one release").
@@ -183,7 +184,18 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 - The `ERRORS.md` entries for the unsigned notification, the editor page, the callback trust, and the file-URL trust are checked with `Resolved:` notes.
 - Status: Met in code and on the pinned release, 2026-10-18. Unit and route tests: 192 (15 files) incl. `strict-routes.test.ts` and `startup.test.ts` under `EDITOR_ENV=production`; typecheck and lint clean. Battery records (EDIT-1's `2026-10-18.{md,json}` is unchanged): `docs/spikes/results/10.0.0.1/2026-10-18-0834.{md,json}` — the full battery on the attempt-1 code, 30 pass, 4 pass-with-finding (7cl, U1, U1t, U1d: the loose lock, as at EDIT-1), 6 recorded, 1 blocked (U13, waived), 0 fail — then `2026-10-18-partial-0907.{md,json}` — S0, S1, S2, E2a–E2e, U9 on the attempt-2 code, 9 pass — `2026-10-18-partial-0929.{md,json}` — S0, S1, S2, E2a–E2e after the attempt-3 fixes, 8 pass — and `2026-10-18-partial-0940.{md,json}` — the same items on the final code (after the attempt-4 nits), 8 pass (the review fixes touched only the service, which the EDIT-1 items and U9 do not exercise). Per bullet: no lock option, Protection, AI, or Plugins tab in a `document` session (E2a); an unregistered panel origin refused (E2e, route test); a restart between edit and save delivers (E2b); a consumer down (503) or refusing (401) then recovered gets the save, one `deliveryId` (E2c); tampered token → expired page (E2e), expired and previous-key tokens (route tests); `.` in a key, a key over 128, `view` on an `e` key refused (route tests, E2e); a forged or replayed notification, two connects, and the page token as a callback token refused (`notify.test.ts`, `callback-auth.test.ts`, `documents.test.ts`); a hostile title and plugin datum inert (`editor-page.test.ts`); drop gives the final save or a closed notification (E2d); a `fileUrl` outside `fileHosts`, a private address, and a GCS path refused (route and strict tests, E2e); the legacy flows still open, uploaded through `/api/files/upload` (S2); the four `ERRORS.md` entries resolved. Newly found: ADR F16 ("Remove content control" unwraps a field), carried to UDOC-3's D16 validation. Not deployed: no environment exists; `standalone-app` Phase 0 closes or is re-baselined before EDIT-2 deploys (it removes `/api/sessions` and `/api/documents/:key/download` and refuses the legacy shape from profile consumers).
 
-**Checkpoint:** two reviewers (E8).
+### EDIT-2.9 Editor-page framing (from SA-1.7, added 2026-10-31)
+- The editor page (`editor-page.ts`) sends no `frame-ancestors`, and `app.ts` deliberately leaves `/editor/` without `X-Frame-Options`, so any site can frame it; CSP is the only control. Its URL is a capability, so the exposure is narrow, but UDOC frames the editor inside consumer apps and the page should admit only those.
+- EDIT-2.9.a The editor page's CSP gains `frame-ancestors` built from the session's own consumer: `'self'` plus that consumer's `panelOrigins` and `returnOrigin`, the same sources the plugin route already uses (EDIT-5.1), filtered by `isOrigin`, which moves out of `routes/plugin.ts` into a module both routes import (no copy). Never another consumer's origins. The `app.ts` comment on `/editor/` framing changes with the code.
+- EDIT-2.9.b A consumer that registers no origin gets `frame-ancestors 'none'`. That breaks a legacy-shape consumer (E1) that frames the editor until it registers an origin. Before the change lands, check how `fastmail-connect` and the Connect extension open the editor (neither registers an origin today) and record here, as an acceptance item, which origins each registers or that it opens the editor top-level and needs none.
+- EDIT-2.9.c The expired page is shown inside the consumer's frame and links back with `target="_top"`, so it gets the same rule: `'self'` plus the named consumer's origins when the token names one, `'none'` otherwise.
+- EDIT-2.9.d Tests: a route test per case (own origins admitted, another consumer's origin absent, no-origin consumer `'none'`, the expired page framed by its own consumer, an unreadable token's expired page `'none'`); battery S1 re-run (no CSP violation in a real editor) and E5's panel items, since the panel sits inside the editor page.
+- Acceptance: the tests above pass; battery S1 and the E5 panel items pass on the pinned release; the consumer guide states the rule; a new image is built before EDIT-6.7.
+- Status: Not started. Lands before EDIT-6.7, which proves it behind Caddy with the stub consumer framing the editor.
+
+- Checkpoint: its own, single reviewer (Sonnet).
+
+**Checkpoint (EDIT-2.1–2.8):** two reviewers (E8).
 
 ---
 
@@ -375,19 +387,19 @@ Verification at every checkpoint: `pnpm --filter @monolith-docs/api run typechec
 - Reachability: the API reaches DocumentServer and the consumers' hosts; DocumentServer reaches the API by compose name; browsers reach `editor-dev.monolith.cx`; CRM dev reaches the API by compose name.
 - **Status (2026-10-31): not started; prerequisites checked.** Nothing on the VPS, DNS, 1Password, or Secret Manager has changed.
   - **Ready:**
-    - The image path (EGM-2.2). No API code changed after the first image, but the triage below needs a new image.
+    - The image: `ghcr.io/monolith-cx/editor-api:5397cf7b2fda42b0ec7c38d81d76f7f6d3ca032a@sha256:1ccf071fb1d3f7d04bd75db1e8816252d2bd3fef44821b1b92c4f615b62feb92`, built by the `Images` workflow on `main` after the triage merged (2026-11-01 03:14 UTC). EDIT-2.9 will need another before EDIT-6.7.
     - The box's pull: Platform FEX-4.1 is installed. `/srv/monolith/bin/vps-deploy.sh` is byte-identical to Platform's copy, and its GHCR table binds `editor-api-<env>`. The first stand-up still pulls by hand, because the script's `up -d` has no `--no-deps`.
     - Room: about 15 GiB free on the box.
-  - **Dependency triage** (required by `ERRORS.md` before this step): branch `fix/edit-deps-triage`.
+  - **Dependency triage** (required by `ERRORS.md` before this step): merged in PR #8 (`5397cf7`).
     - `pnpm audit --prod` went from 67 findings (24 high) to 2 accepted moderates. The API dropped its unused `@monolith-docs/db` (Prisma), and fastify, `@fastify/static`, vitest, turbo, and Prisma were bumped.
     - **Fastify 5.12 ignores a `TRUST_PROXY` hop count**, which would have put every browser in Caddy's rate-limit bucket. The API now refuses one, and the VPS template names Caddy's network subnet (`monolith-dev` was `172.19.0.0/16`; ADR decision 7 amended).
     - Verified: 235 API tests, 38 plugin tests, typecheck, lint, both battery compose files, the image build with `/health`, and battery `docs/spikes/results/10.0.0.1/2026-10-31-partial-2000` (18 items: S0–S2, E2a–E2e, E3a–E3b, E5a–E5f, E6a, E6d; all pass; built before the review's doc and range fixes, which changed no running code).
     - Review: Sonnet attempt 1 PASS-WITH-NITS, every finding applied (`reviews/review-edit-6-deps-triage-attempt-1-sonnet.md`).
-  - **Owner decisions before the stand-up:**
-    - `standalone-app` Phase 0's deploy gate (EDIT-0.2): close or re-baseline it. Its gates assume the deleted GCE host.
-    - How root steps on the box run (`health-check.sh` and `/etc/cron.d`).
-    - DNS for `editor-dev.monolith.cx`: no record yet, Cloudflare zone.
-    - Caddy's error log for the host.
+  - **Owner decisions (2026-10-31):**
+    - `standalone-app` is archived (EDIT-0.2); its gate no longer blocks.
+    - Root steps on the box (`health-check.sh`, `/etc/cron.d`): the deploy user has passwordless sudo; each root command is shown to Josh and approved before it runs.
+    - Hostnames: `editor-dev.monolith.cx` (dev) and `editor.monolith.cx` (prod). The `editor-dev` A record (to the VPS, DNS only, like `crm-dev` and `docs-dev`) does not exist yet; the Cloudflare tools need `/mcp` authorisation, or Josh adds it.
+    - Still open: Caddy's error log for the host.
   - **For EDIT-6.7:** the stub consumer's panel page loads in the browser, and its source files must pass the service's URL checks, so both need https origins outside the box network. A4's "a stub receiver on the network" does not cover that. It is designed at 6.7.
 
 ### EDIT-6.7 Acceptance (parent UDOC-1.6)
@@ -431,7 +443,8 @@ Two checkpoints: **6.1–6.5** (local; single reviewer, Sonnet) before anything 
 - EDIT-6 depends on a reachable editor host for `crm-dev` (DOC-DPP planning; Platform DPP Phase 5) and on a CRM notification receiver for its last acceptance item.
 - The Word desktop item in EDIT-1.5 needs a machine with Word, or Josh's written waiver.
 - UDOC-2.1's contract draft (Platform) is written alongside EDIT-2 and EDIT-5.
-- `standalone-app` Phase 0 closes or is re-baselined before EDIT-2 is deployed.
+- ~~`standalone-app` Phase 0 closes or is re-baselined before EDIT-2 is deployed.~~ Resolved 2026-10-31: archived (EDIT-0.2).
+- EDIT-2.9 lands, with a new image, before EDIT-6.7.
 - Removing the legacy open shape (E1) depends on `fastmail-connect` and the Connect extension migrating; not an EDIT acceptance.
 
 ## Assumptions
