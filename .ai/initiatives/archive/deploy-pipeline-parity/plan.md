@@ -1,5 +1,7 @@
 # Deploy Pipeline Parity — Execution Plan
 
+> **Archived 2026-10-31 (owner decision), never started.** It waited on `standalone-app` Phase 0 (archived the same day) and targeted a GCE + NGINX + Cloudflare Tunnel stack that no longer exists. What it was for landed elsewhere: CI and the protected `main` ruleset (EGM-1), the image build (EGM-2, the `Images` workflow), and the box's pull and deploy script (Platform FEX-4.1). Automated editor deploys are an EDIT follow-up (the VPS runbook deploys by hand until then). Nothing below is open work.
+
 ## Initiative ID: `deploy-pipeline-parity`
 
 ## Abbreviation: `DPP`

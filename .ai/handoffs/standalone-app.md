@@ -1,9 +1,11 @@
 # Standalone App Handoff
 
-Updated: 2026-04-19
+Updated: 2026-10-31
 Initiative: `standalone-app`
-Lane: `active`
-Status: `in_progress`
+Lane: `archive`
+Status: `archived`
+
+**Archived 2026-10-31 (owner decision).** See the note at the top of `.ai/initiatives/archive/standalone-app/plan.md`: the restructure is done, the GCE parity gate is superseded, the placeholders are removed, SA-1.7 moved to EDIT-2.9, and SA-1.6 is dropped. Everything below is the April record, kept as history.
 Current checkpoint: `Phase 0 (SA-0.0 through SA-0.5)`
 
 ## Current State
@@ -22,14 +24,14 @@ Phase 0 is locally code-complete for the repo restructure:
 
 Checkpoint review status is still `FAIL` because the required external Phase 0 evidence is not captured yet. See:
 
-- `.ai/initiatives/active/standalone-app/reviews/review-phase-0-attempt-1.md`
-- `.ai/initiatives/active/standalone-app/reviews/review-phase-0-attempt-2.md`
-- `.ai/initiatives/active/standalone-app/reviews/review-phase-0-attempt-3.md`
+- `.ai/initiatives/archive/standalone-app/reviews/review-phase-0-attempt-1.md`
+- `.ai/initiatives/archive/standalone-app/reviews/review-phase-0-attempt-2.md`
+- `.ai/initiatives/archive/standalone-app/reviews/review-phase-0-attempt-3.md`
 
 Pre-deploy safety review status is now `PASS`. See:
 
-- `.ai/initiatives/active/standalone-app/reviews/review-phase-0-predeploy-codex.md`
-- `.ai/initiatives/active/standalone-app/reviews/review-phase-0-predeploy-codex-attempt-2.md`
+- `.ai/initiatives/archive/standalone-app/reviews/review-phase-0-predeploy-codex.md`
+- `.ai/initiatives/archive/standalone-app/reviews/review-phase-0-predeploy-codex-attempt-2.md`
 
 ## Verification Already Run
 

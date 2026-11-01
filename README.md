@@ -39,9 +39,7 @@ monolith-docs/
 │   │       ├── consumers.ts consumer config resolution
 │   │       ├── safe-url.ts, session-token.ts, notify.ts  URL gate, sealed sessions, signed notifications
 │   │       └── server.ts Entry point
-│   └── web/              Placeholder for the standalone frontend workspace
-├── packages/
-│   └── db/               Prisma workspace scaffold
+│   └── plugin/           The panel bridge plugin (EDIT-5), served by the API
 ├── infrastructure/       GCP deployment scripts and hosted env config
 ├── docs/                 Technical and architectural docs
 └── .ai/                  Initiative tracking and review workflow

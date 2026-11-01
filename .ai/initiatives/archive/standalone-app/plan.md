@@ -4,6 +4,8 @@
 
 ## Abbreviation: `SA`
 
+> **Archived 2026-10-31 (owner decision).** Phase 0's restructure is done and in use: pnpm and Turbo, `apps/api`, Node 24, and the docs, all checked by the repo's CI on every PR since EGM-1. Its open parity gate (Track C: a dev GCE deploy, a rollback dry run, and CRM and Connect round-trips against the old headless API) is superseded, not met: the GCE hosts were deleted on 2026-06-12, no hosted editor exists to compare against, and EDIT deliberately changes the API that gate verified. The assurance it was after comes from EDIT's tests, the real-editor battery, and the EDIT-6.7 acceptance run on the VPS. The two Phase 0 placeholders with no runtime use, `packages/db` (an empty Prisma schema) and `apps/web`, were removed on 2026-10-31. Follow-ups: **SA-1.7** (editor-page `frame-ancestors`) moved into EDIT as EDIT-2.9, before EDIT-6.7; **SA-1.6** (hostname guard) is dropped, because on the VPS every consumer reaches the same editor hostname, so a hostname binding cannot tell consumers apart, and each consumer is identified by its own signed token. `deploy-pipeline-parity`, which waited on this phase and assumed GCE, was archived with it. Nothing below is open work.
+>
 > **Re-scoped 2026-10-16 (Phase 0 only).** After the 2026-09-02 repo split, the standalone product surface lives in the private `monolith-docs` repo. This initiative keeps **Phase 0** (workspace restructure and headless parity) and its open gates. **Phases 1–7 are superseded** and are kept below as a historical record only; do not implement them here. The editor-service work UDOC needs (profiles, stateless sessions, signed notifications, conversion, redaction, the panel plugin, hosting) is the `udoc-editor-service` (EDIT) initiative. Two items have no owner and are candidate follow-ups: SA-1.6 (`hostnameGuard` and production-strict `findConsumersByHostname`) and SA-1.7 (`allowedFrameAncestors` on the editor page). The Critical Constraint below ("headless API unmodified") applies to Phase 0 only; EDIT changes the headless API deliberately, keeping the legacy open shape for existing consumers (EDIT guidance E1). Because EDIT-4 and EDIT-2 change the headless API that Phase 0 verifies, Phase 0 must close (or its Track A matrix be re-baselined: EDIT-2 removes `/api/documents/:key/download` and `/api/sessions`) before EDIT-2 is deployed. The owner decided (2026-10-16) to keep this initiative active for Phase 0 and archive it once Phase 0 closes.
 
 ## Critical Constraint
@@ -16,7 +18,7 @@ Implementation note: preserving headless behavior requires an auth/routing refac
 
 Standalone product work and deployment-parity work are now intentionally split:
 
-- Docs-local CI/CD, branch protection, dev-environment parity, and rollback automation live in `.ai/initiatives/planning/deploy-pipeline-parity/`.
+- Docs-local CI/CD, branch protection, dev-environment parity, and rollback automation live in `.ai/initiatives/archive/deploy-pipeline-parity/`.
 - Phase 0 in this plan establishes the stable pnpm/Turbo workspace and command surface that DPP Phase 2 will protect with the repo `verify` workflow.
 - Full deploy/rollback parity is intentionally not front-loaded before Phase 0, because doing so would automate a repo layout and runtime topology that this initiative immediately changes.
 - Do not treat Standalone Phase 6 as deployment-complete while DPP Phase 4 is still open. The final standalone stack must be what the parity initiative actually automates.
