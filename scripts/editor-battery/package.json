@@ -6,7 +6,8 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
-    "battery": "node src/run.mjs"
+    "battery": "node src/run.mjs",
+    "test": "node --test 'test/*.test.mjs'"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.8",

@@ -7,8 +7,9 @@
 #   * No ${{ }} interpolation inside any `run:` body.
 #   * The required status check is `checks` (the ruleset names it).
 #   * The OnlyOffice battery (scripts/editor-battery) needs Docker and DocumentServer
-#     and is run by hand, never here; it defines no lint, typecheck, test, or build
-#     script, so turbo never runs it.
+#     and is run by hand, never here. Its `test` script runs only the pure tests under
+#     scripts/editor-battery/test/ (the acceptance stub and the hosted runner's pass
+#     rule, EDIT-6.7), which need neither, so turbo runs them with the others.
 name: CI
 
 on:
