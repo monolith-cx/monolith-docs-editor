@@ -42,7 +42,7 @@ Our posture:
 - **Term 4:** our products do not use ONLYOFFICE names or logos as their own.
 - **AGPL §13:** users interact with an unmodified DocumentServer, whose corresponding source is upstream's; the About entry links it. This repository's own AGPL code is published through the public mirror.
 
-This is an engineering record, not legal advice. Josh's licence decision (Developer Edition or AGPL peer) is EDIT-7.
+This is an engineering record, not legal advice. **Decided 2026-11-02 (EDIT-7, Josh): the AGPL peer.** No Developer Edition licence for now; the obligations above stay in force. The triggers for revisiting (branding, a measured connection limit, a proprietary home for the editor) are in the EDIT guidance, E10. Checked the same day on the dev host: 10.0.0.1's `/info/info.json` `licenseInfo` reports `hasLicense: false`, `branding: false`, `customization: false`, and no connection cap at that level.
 
 ## Findings that change the design
 
