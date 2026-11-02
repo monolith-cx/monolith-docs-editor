@@ -25,15 +25,11 @@ Standalone AGPL document-editing service built around OnlyOffice DocumentServer 
 - Consumer auth, hostname binding, callback and notification security, and the sealed stateless sessions are core security boundaries
 - Headless integrations and the future standalone app are different surfaces; do not blur them
 
-## Roadmap And Initiative State
+## Work Tracking
 
-- High-level feature and delivery status: `ROADMAP.md`
-- Initiative registry: `.ai/registry.yml`
-- Initiative docs: `.ai/initiatives/<lane>/<initiative-id>/`
-- Optional atomic backlog: `.ai/backlog.yml`
-- IDDP policy: `.ai/iddp/config.json`
-- No repo-level current file or session ledger is part of the active workflow
-- Commits require explicit user approval, and doc sync is required before commits and phase close-outs
+- Maintainers track work privately in Linear; an effort bigger than one PR is a Linear project, never a new `.ai/` initiative. Contributors use GitHub issues and pull requests.
+- Legacy initiatives not yet moved: `.ai/registry.yml`, `.ai/initiatives/<lane>/<initiative-id>/`, `ROADMAP.md`. Never tracked in both.
+- Review: opposing review on the PR. Any other provider only with the repository owner's explicit approval for that use.
 
 ## Key Rules
 

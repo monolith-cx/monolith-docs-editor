@@ -16,7 +16,7 @@ This repo integrates with Monolith Platform for future standalone auth, entitlem
 - Integration status: `C:\Dev\monolith-platform\docs\ecosystem\integration-status\monolith-docs.yaml`
 - Shared contracts: `C:\Dev\monolith-platform\docs\ecosystem\contracts\`
 - Shared playbooks: `C:\Dev\monolith-platform\docs\ecosystem\playbooks\`
-- Cross-project parent initiatives: `C:\Dev\monolith-platform\.ai\ecosystem\initiatives\`
+- Cross-product work and sequencing: tracked privately by the maintainers; nothing in it is needed to build or test this repo
 
 Rules:
 
@@ -74,7 +74,7 @@ Core patterns:
 - No direct `process.env` access outside centralized config loading
 - No business logic that belongs in consumer apps
 - No fake success paths around OnlyOffice callbacks, signed URL handling, or consumer auth
-- No permanent document storage unless an initiative explicitly introduces it
+- No permanent document storage unless an approved project decision (or a legacy initiative) explicitly introduces it
 - Do not collapse the AGPL boundary by moving proprietary integration behavior into this repo
 
 ## Engineering Workflow
@@ -121,26 +121,13 @@ Core patterns:
 - Do not claim OnlyOffice, callback, notification, or hosted integration flows are verified if you did not actually exercise them.
 - Treat weak verification as `code-complete`, not `complete`.
 
-## Initiative Workflow
+## Work Tracking
 
-Non-trivial work should be tracked in initiative docs under `.ai/initiatives/`.
+Maintainers track this repo's work in Linear (the Docs team, label "Docs Editor") under the Monolith workflow, which is private. Nothing in it is needed to build, test, or contribute here; outside contributors use GitHub issues and pull requests.
 
-- `ROADMAP.md` is the high-level feature and delivery summary.
-- `.ai/registry.yml` is the initiative index.
-- `.ai/initiatives/{active|planning|complete|archive}/{id}/guidance.md` owns durable initiative-specific decisions.
-- `.ai/initiatives/{active|planning|complete|archive}/{id}/plan.md` owns execution status and acceptance criteria.
-- `.ai/backlog.yml` is optional and should only be used if atomic task tracking adds value beyond initiative plans.
-- There is no repo-level current file, session ledger, or repo-global handoff file in the active workflow.
-- Initiative handoffs live in `.ai/handoffs/<initiative-id>.md`. Read one only when resuming that initiative and a handoff is present.
-- `/initiative checkpoint` and `/initiative phase-close` refresh the initiative handoff after doc sync. `/initiative handoff` can be run manually at any time.
-- Infer current work from the user request, `ROADMAP.md`, `.ai/registry.yml`, and the relevant initiative docs.
-- Manual reviews are allowed at any time.
-- Stop coding at checkpoint boundaries and run the checkpoint review before continuing.
-- Checkpoint reviews default to Codex for a single reviewer. When two reviewers are needed, use Codex + Sonnet. Add Kimi for frontend-heavy work when the extra UI review is useful.
-- Phase close-outs require multiple reviewers and default to Codex + Sonnet, with Kimi added for frontend-heavy work when useful.
-- Run doc sync before any commit and at every phase close-out.
-- Never commit automatically. Every commit requires explicit user approval.
-- The active workflow does not use commit-ready stamps or approval stamp files.
-- See `README.md` for the short skill-selection guide.
-
-Do not treat retired docs-based control-plane files or legacy plan directories as active unless the current repo docs explicitly point to them.
+- An effort bigger than one PR is a Linear project: phases are milestones, PR-sized steps are issues. Never start a new `.ai/` initiative. Put the issue id in the branch name or PR title.
+- Legacy initiatives: one under `.ai/initiatives/` that has not yet moved to Linear keeps its `plan.md`, `guidance.md`, handoff, `.ai/registry.yml` entry and `ROADMAP.md` line until it moves, and is never tracked in both. A moved initiative is frozen as history.
+- A legacy initiative's owner keeps its IDDP flow until it moves: stop at checkpoint boundaries and run the checkpoint review, run doc sync before every commit and at phase close-out, and refresh its handoff (`/initiative checkpoint`, `/initiative phase-close`, `/initiative handoff`). Other review providers still need the repository owner's explicit approval for each use.
+- Review is opposing review on the PR: Claude implements and Codex reviews, or the reverse. Fix, then re-review the final head. Any other provider only with the repository owner's explicit approval for that use; the reviewer defaults in `.ai/iddp/config.json` apply only to legacy initiatives.
+- Never put private contracts, process records, customer data, or credentials in this repo.
+- Never commit automatically. Every commit, push and merge needs the repository owner's explicit approval.
