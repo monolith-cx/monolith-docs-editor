@@ -67,17 +67,22 @@ environment's network.
 
 1. **Secrets** (1Password, then the env files, then Google Secret Manager in `monolith-docs`, together):
    the DocumentServer JWT secret, the seal key, and one notification secret per consumer. The env
-   files are `env/editor-api.env` (from `editor-api.env.example`) and `env/editor-documentserver.env`
-   (`JWT_SECRET=` the API's `ONLYOFFICE_JWT_SECRET`), both 0600. `TRUST_PROXY` is the
+   files are `/srv/monolith/dev/env/editor-api-dev.env` (from `editor-api.env.example`) and
+   `editor-documentserver-dev.env` (`JWT_SECRET=` the API's `ONLYOFFICE_JWT_SECRET`), owned
+   `deploy:monolith-deploy`, 0640, like the box's other env files (prod drops the `-dev`). Secret Manager
+   names follow CRM's: `editor-<name>-dev` (`editor-onlyoffice-jwt-secret-dev`, `editor-seal-keys-dev`,
+   `editor-notify-secret-<consumer>-dev`). The 1Password item is `Monolith Docs Editor — <env>`. `TRUST_PROXY` is the
    `monolith-dev` network's subnet, read with `docker network inspect` (the template says how); the
    API refuses a hop count.
 2. **DNS:** `editor-dev.monolith.cx` to the VPS, like the other `-dev` hosts.
 3. **Files:** `local-production-linux.json` to `/srv/monolith/dev/editor/onlyoffice/`; the fragment
    merged into `/srv/monolith/dev/docker-compose.yml` with `<env>` = `dev` and `<sha>` the API image;
    `docker compose -p monolith-dev config -q` must pass.
-4. **Start DocumentServer first, and wait** (ADR F15): it restarts its own services about two minutes
-   after it reports healthy, once background font generation ends, dropping any editor already open.
-   Watch its memory while it does (E6c did not measure the font-generation peak against the 3 GiB limit):
+4. **Start DocumentServer first, and wait** (ADR F15): it restarts its own services (`docservice`,
+   `converter`) once after it reports healthy, dropping any editor already open. On the first dev
+   stand-up (2026-11-01) that came about 2.5 minutes in, while font generation was still running, and
+   font generation ended at about four minutes; wait for both. Memory peaked at 476 MiB against the
+   3 GiB limit then; watch it and `OOMKilled` on every first start:
    ```bash
    docker compose -p monolith-dev up -d editor-documentserver-dev
    docker stats --no-stream monolith-dev-editor-documentserver-dev-1
@@ -88,9 +93,11 @@ environment's network.
 5. **Start the API without touching DocumentServer:**
    `docker compose -p monolith-dev up -d --no-deps editor-api-dev`. It refuses to start on a
    configuration problem and says which (`startupProblems`).
-6. **Caddy:** merge `Caddyfile.editor`, restart the Caddy container (no `caddy reload`: `admin off`).
-   Decide Caddy's error log for this host here (ERRORS.md, 2026-10-18): on an upstream failure it
-   records the request URI, which for `/editor/<token>` is a capability.
+6. **Caddy:** merge `Caddyfile.editor`: the site block, and its two global loggers into the box's
+   global options block, which keep the request URI (for `/editor/<token>`, a capability) out of the
+   host's error log (ERRORS.md, 2026-10-18; decided 2026-11-01). Validate the merged file in a
+   throwaway container of the same image (`caddy validate`), then restart the Caddy container (no
+   `caddy reload`: `admin off`); the restart drops every site on the box for a few seconds.
 7. **Checks:** `https://editor-dev.monolith.cx/health` is 200; `/api/status`, `/health/converter`, and
    `/info/info.json` are refused through Caddy; inside the API container the converter probe answers 200:
    ```bash
@@ -104,7 +111,7 @@ environment's network.
      */5 * * * * root WATCH_API_SERVICE=editor-api-dev WATCH_DS_SERVICE=editor-documentserver-dev /srv/monolith/bin/editor-converter-watch.sh
      ```
      Cron's mail reaches a person only if the box's local mail is deliverable (the playbook's caveat
-     for `health-check.sh`); check it.
+     for `health-check.sh`); check it. On the VPS (checked 2026-11-02) it is not: the box has no MTA, so read the log.
    - Add both containers to `/srv/monolith/bin/health-check.sh`'s critical container list, so a
      stopped editor alerts like every other service.
 9. **Acceptance:** EDIT-6.7 (the stub consumer on `monolith-dev`, the editor opened with the panel

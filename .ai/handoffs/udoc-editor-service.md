@@ -1,6 +1,6 @@
 # Handoff — Editor Service for Unified Document Authoring (EDIT)
 
-- **Updated:** 2026-10-31
+- **Updated:** 2026-11-02
 - **Lane / status:** active / `active` (owner-approved 2026-10-16)
 - **Parent:** Platform ecosystem initiative `unified-document-authoring` (UDOC), phase UDOC-1. EDIT-*n* implements UDOC-1.*n*.
 - **Plan:** `.ai/initiatives/active/udoc-editor-service/plan.md` · **Guidance:** `guidance.md` (local decisions E1–E8)
@@ -15,9 +15,40 @@
 | EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed | `c7bfa21` |
 | EDIT-3 (UDOC-1.3) | Code-complete 2026-10-18; not deployed | `0f70bf0` |
 | EDIT-5 (UDOC-1.5) | Code-complete 2026-10-18; not deployed | `381d50b` |
-| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6–6.7 not started: prerequisites met 2026-10-31 (triage merged in PR #8; image `5397cf7@sha256:1ccf071f…`); EDIT-2.9 (editor-page framing, from SA-1.7) added before 6.7 | `deca209`, `5397cf7` |
+| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6 (the dev stand-up) done 2026-11-02 (image `5397cf7@sha256:1ccf071f…`); 6.7 pending; EDIT-2.9 (editor-page framing, from SA-1.7) added before 6.7 | `deca209`, `5397cf7` |
 
 EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
+
+### 2026-11-02: EDIT-6.6 step 8 (monitoring) done; EDIT-6.6 complete
+
+- Watchdog installed (`/srv/monolith/bin/editor-converter-watch.sh`, identical to `main`; `/etc/cron.d/monolith-editor-converter`, every 5 min); manual and first cron runs healthy and silent.
+- Both editor containers added to `health-check.sh` (backed up); it passes.
+- **Found:** the box's cron mail reaches no one (no MTA; the health check's output goes to `/dev/null`), so alerts are log-only. Logged in Platform's `ERRORS.md`; an owner decision for VPSM. The converter-wedge entry in this repo's `ERRORS.md` is closed: the hosted watchdog runs.
+- **Errors:** no new unresolved errors in this repo; one in Platform's (an update to an existing entry).
+
+### 2026-11-02: EDIT-6.6 step 7 (checks) done
+
+- Through Caddy: `/health` 200; `/api/status`, `/health/converter`, `/info/info.json` refused (403, 404, 403). The converter probe inside the API answers 200.
+- **Log filter proven live:** the API stopped for about 3 s, two fake-token editor requests answered 502, and Caddy logged both with no URI, Referer, token, or signature. The `ERRORS.md` entry is closed. The API is back and healthy; DocumentServer was not touched.
+- **Seen:** DocumentServer's stock `/welcome/` page and `/healthcheck` are public through the catch-all (no secret in either). Refusing `/welcome/*` and `/example/*` is proposed for the next Caddy change, for Josh to decide.
+- **Tracking:** DOC-1.
+- **Errors:** no new unresolved errors; one closed (Caddy's error log).
+
+### 2026-11-01: EDIT-6.6 steps 1–6 (secrets, DNS, files, DocumentServer, the API, Caddy) done
+
+- **Where the secrets went:** the editor's own GCP project, `monolith-docs`, the way CRM and Connect keep theirs in their own projects (Monolith Docs uses `monolith-platform` only because it has none). Its Secret Manager API had been off since the GCE teardown, with the old secrets deleted; Josh approved re-enabling it.
+- **Written in one run, values never printed, all three compared by hash (match):**
+  - 1Password `Dev`: `Monolith Docs Editor — dev` (three concealed fields) and the two env files as documents.
+  - The box: `/srv/monolith/dev/env/editor-api-dev.env` and `editor-documentserver-dev.env`, `deploy:monolith-deploy` 0640. `CONSUMERS=[]`, `TRUST_PROXY` the network's subnet.
+  - Secret Manager: `editor-onlyoffice-jwt-secret-dev`, `editor-seal-keys-dev`, `editor-notify-secret-acceptance-dev`.
+- **Deferred to 6.7:** the stub consumer's HMAC credential, made with the stub.
+- **DNS:** Josh added `editor-dev.monolith.cx`.
+- **Step 3, files:** the OnlyOffice config at `/srv/monolith/dev/editor/onlyoffice/`; the fragment merged into the dev compose file (backed up first; 56 lines added, none changed); `config -q` passes; nothing started.
+- **Step 4, DocumentServer:** running since 18:19:43 UTC, healthy, peak 476 MiB of 3 GiB, no OOM or restart; fonts done in about four minutes; its internal service restart (F15) came during font generation, at about 18:22:15. JWT enforced (unsigned command refused), AI refused, the mounted config matches main.
+- **Step 5, the API:** pulled with a temporary login (none kept), started alone, strict with `CONSUMERS=[]`, healthy; the converter probe answers 200; DocumentServer, `docs-api-dev`, and `crm-api-dev` reach it as `editor-api:3020`. No host ports; no Caddy route yet.
+- **Step 6, Caddy:** the editor block merged into the shared Caddyfile with a host-only error-log filter (URI and Referer deleted; tested locally first), validated, Caddy restarted (about 10 s); every other site unchanged; `https://editor-dev.monolith.cx/health` is 200 on a Let's Encrypt certificate. Platform's `vps-runtime.md` records the logging.
+- **Repo (branch `docs/edit-6-6-secrets`, not committed):** the fragment's `env_file` entries use the box's absolute paths and names; the runbook and template say 0640 `deploy:monolith-deploy`; the plan and this handoff.
+- **Errors:** no new unresolved errors.
 
 ### 2026-10-31 (later): `standalone-app` archived, the image built
 
@@ -26,7 +57,7 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 - **SA-1.7 → EDIT-2.9:** the editor page gains `frame-ancestors` from the session's consumer, before EDIT-6.7. **SA-1.6 dropped:** every consumer shares the editor hostname on the VPS; the signed token identifies the consumer.
 - **Image:** `ghcr.io/monolith-cx/editor-api:5397cf7b2fda42b0ec7c38d81d76f7f6d3ca032a@sha256:1ccf071fb1d3f7d04bd75db1e8816252d2bd3fef44821b1b92c4f615b62feb92` (`Images` run 41268300741).
 - **Dependabot:** not yet rescanned after PR #8 (100 open alerts, all dated before the merge); the `ERRORS.md` entry stays open.
-- **Still open for 6.6:** the `editor-dev` DNS record (Cloudflare tools need `/mcp` authorisation, or Josh adds it) and Caddy's error log.
+- **Still open for 6.6 (both done 2026-11-01, see above):** the `editor-dev` DNS record (Cloudflare tools need `/mcp` authorisation, or Josh adds it) and Caddy's error log.
 
 ### 2026-10-31: stand-up prerequisites and the dependency triage
 
@@ -198,13 +229,13 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 ## Blockers and open decisions (Josh)
 
 - ~~**Deploy gate:** `standalone-app` Phase 0 must close or be re-baselined before EDIT-2 is deployed.~~ Resolved 2026-10-31: archived by Josh.
-- **No environment exists.** EDIT-6.6 is the stand-up on the VPS (runbook `infrastructure/vps/README.md`), and each step needs Josh's approval:
-  - secrets in 1Password, the env files, and Secret Manager;
-  - DNS for `editor-dev.monolith.cx`;
-  - the files and compose merge;
-  - starting DocumentServer, then the API;
-  - Caddy, including its error-log decision;
-  - the watchdog's cron line and the `health-check.sh` entry.
+- **A dev environment exists since 2026-11-01** (`editor-dev.monolith.cx`). EDIT-6.6 was the stand-up on the VPS (runbook `infrastructure/vps/README.md`), and each step needs Josh's approval:
+  - ~~secrets in 1Password, the env files, and Secret Manager~~ done 2026-11-01;
+  - ~~DNS for `editor-dev.monolith.cx`~~ done by Josh;
+  - ~~the files and compose merge~~ done 2026-11-01;
+  - ~~starting DocumentServer, then the API~~ done 2026-11-01;
+  - ~~Caddy, including its error-log decision~~ done 2026-11-01;
+  - ~~the watchdog's cron line and the `health-check.sh` entry~~ done 2026-11-02.
 - **Before the first deploy:**
   - the editor image: EGM-2 (this repo's `github-migration`) adds the `Images` workflow, which pushes `ghcr.io/monolith-cx/editor-api:<sha>`, and names it in the compose fragment. The image path is ready (EGM-2.2, 2026-10-25): the first image is `ghcr.io/monolith-cx/editor-api:43784d4ac36ac1818e983a392be35b71ad866023@sha256:622275c39c7df9c57365f908e8a83b404ed8e83e3cc595f8a2df715d8027c4f1`, and the package is private, so the box needs the token pull;
   - the repo's move to GitHub is complete (EGM, 2026-10-25: source of truth, CI, and the image are all on `monolith-cx`; `.ai/handoffs/github-migration.md`); the box pulls the image through Platform's FEX-4.1 `vps-deploy.sh` once the owner approves installing it;
@@ -226,8 +257,8 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
 ## Next step
 
-- **As of 2026-10-31 (later):**
-  1. EDIT-6.6 step by step, each with Josh's approval: secrets, DNS, files, DocumentServer, the API, Caddy (with its error-log decision), monitoring (sudo, each command approved).
+- **As of 2026-11-02:**
+  1. Commit this branch (`docs/edit-6-6-secrets`) and Platform's (`docs/udoc-edit-6-6-secrets`) by PR, with Josh's approval (tracked as DOC-1). EDIT-6.6 is done.
   2. EDIT-2.9 (editor-page framing), its checkpoint, and a new image.
   3. EDIT-6.7, with a stub consumer that has https origins.
 - **Done since the 2026-10-31 list:** triage merged (PR #8), the image built, `standalone-app` archived, root steps decided.
