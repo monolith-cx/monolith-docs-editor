@@ -1,6 +1,6 @@
 # Handoff — Editor Service for Unified Document Authoring (EDIT)
 
-- **Updated:** 2026-11-02
+- **Updated:** 2026-11-02 (EDIT-6.7)
 - **Lane / status:** active / `active` (owner-approved 2026-10-16)
 - **Parent:** Platform ecosystem initiative `unified-document-authoring` (UDOC), phase UDOC-1. EDIT-*n* implements UDOC-1.*n*.
 - **Plan:** `.ai/initiatives/active/udoc-editor-service/plan.md` · **Guidance:** `guidance.md` (local decisions E1–E8)
@@ -15,7 +15,7 @@
 | EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed | `c7bfa21` |
 | EDIT-3 (UDOC-1.3) | Code-complete 2026-10-18; not deployed | `0f70bf0` |
 | EDIT-5 (UDOC-1.5) | Code-complete 2026-10-18; not deployed | `381d50b` |
-| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6 (the dev stand-up) done 2026-11-02 (image `5397cf7@sha256:1ccf071f…`); 6.7 pending; EDIT-2.9 (editor-page framing, from SA-1.7) added before 6.7 | `deca209`, `5397cf7` |
+| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6 (the dev stand-up) done 2026-11-02 (image `5397cf7@sha256:1ccf071f…`); 6.7 (acceptance) done 2026-11-02 on editor-dev with the acceptance stub; EDIT-2.9 (editor-page framing, from SA-1.7) added before 6.7 | `deca209`, `5397cf7` |
 
 EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
@@ -258,16 +258,16 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 ## Next step
 
 - **As of 2026-11-02:**
-  1. EDIT-2.9 (editor-page framing): code-complete and reviewed on `feat/edit-2-9-frame-ancestors` (plan status line); merge by PR with Josh's approval, then build the image on `main` (`Images` workflow).
-  2. EDIT-6.7, with a stub consumer that has https origins, on the new image.
+  1. EDIT-6.7 passed on editor-dev (plan, EDIT-6.7 "Done"): merge `feat/edit-6-7-acceptance` by PR with Josh's approval (tracked as DOC-3).
+  2. EDIT-7 (owner decision), then the EDIT close-out.
   3. Before `fastmail-connect` or the Connect extension is hosted again: register `returnOrigin: https://app.fastmail.com` (EDIT-2.9.b).
-- **Done since:** EDIT-6.6 merged (PR #10; Platform PR #148).
+- **Done since:** EDIT-6.6 merged (PR #10; Platform PR #148); EDIT-2.9 merged (PR #11), its image built and deployed to editor-dev; EDIT-6.7 run with the acceptance stub (stopped afterwards; its consumer entry and files stay for a re-run).
 - **Done since the 2026-10-31 list:** triage merged (PR #8), the image built, `standalone-app` archived, root steps decided.
 - **Earlier (2026-10-25):**
 
 - EDIT-6.1–6.5 are committed and on GitHub `main`. `main` is protected since EGM-1: every change lands by PR with the `checks` check green.
 - Then EDIT-6.6, once EGM-2 and FEX-4.1 are done, the VPS stand-up, step by step with Josh's approval per the runbook.
-- Then EDIT-6.7, the acceptance: a stub consumer on `monolith-dev`, the editor with its panel through `editor-dev.monolith.cx`, a signed save verified, and F2's save-URL origin.
+- ~~Then EDIT-6.7, the acceptance:~~ done 2026-11-02: a stub consumer on `monolith-dev`, the editor with its panel through `editor-dev.monolith.cx`, a signed save verified, and F2's save-URL origin.
 
 ## Follow-ups noted
 

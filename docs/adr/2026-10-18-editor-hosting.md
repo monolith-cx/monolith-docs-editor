@@ -100,7 +100,7 @@ Records are in `docs/spikes/results/10.0.0.1/`.
   - the editor page kept `Referrer-Policy: no-referrer`;
   - `/info/info.json` was refused with 403.
 
-  E6d did not exercise TLS, HSTS, the WebSocket, or the forwarded headers DocumentServer uses to build its public URLs. Those are proven at EDIT-6.7, with a browser through the real host, together with F2's save-URL origin.
+  E6d did not exercise TLS, HSTS, the WebSocket, or the forwarded headers DocumentServer uses to build its public URLs. Those are proven at EDIT-6.7, with a browser through the real host, together with F2's save-URL origin. Proven 2026-11-02: through Caddy on `editor-dev.monolith.cx`, the editor drew and took typed edits over TLS and the WebSocket, the bridge panel loaded, the final save's URL passed the callback origin check, and the consumer received and verified the save (EDIT plan, EDIT-6.7).
 - **E6e (`-0057`): a restart in place, with a healthy converter.**
   - A user typed in an open editor without saving, and DocumentServer was restarted in place.
   - DocumentServer sent the final save (status 2) one second into the restart, and the typed text was in it.
