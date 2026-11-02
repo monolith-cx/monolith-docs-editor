@@ -13,9 +13,9 @@ Standalone AGPL document-editing service built around OnlyOffice DocumentServer 
 
 ## Ecosystem
 
-- Parent ecosystem hub: Monolith Platform (`C:\Dev\monolith-platform`)
-- Primary consumer: Monolith CRM (`C:\Dev\monolith-crm`)
-- Durable ecosystem contracts and integration docs live in `C:\Dev\monolith-platform\docs\ecosystem\`
+- Parent ecosystem hub: Monolith Platform
+- Primary consumer: Monolith CRM
+- Durable ecosystem contracts and integration docs live in Monolith Platform's `docs/ecosystem/` (private)
 
 ## Architecture Patterns
 
