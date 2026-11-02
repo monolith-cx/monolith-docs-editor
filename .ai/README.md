@@ -1,6 +1,6 @@
 # Monolith Docs AI Workspace
 
-This directory is the active home for AI operational state in this repo.
+This directory holds the legacy initiatives that have not yet moved to Linear. Maintainers track new work in Linear and outside contributors use GitHub issues and pull requests (`CLAUDE.md` § Work Tracking); never start a new initiative here. A moved initiative stays here as frozen history.
 
 ## Layout
 
@@ -24,7 +24,7 @@ This directory is the active home for AI operational state in this repo.
 - `/initiative checkpoint`, `/initiative phase-close`, and `/initiative handoff` own handoff refresh.
 - Manual reviews can be triggered at any time.
 - Stop coding at checkpoint boundaries and run the checkpoint review before continuing.
-- Reviews follow `.ai/iddp/config.json` (since 2026-11-02): one opposing reviewer at checkpoints and phase close-outs, chosen by who implemented (`opposing_review`: Claude's work is reviewed by Codex, Codex's by Sonnet). No fallback, backup, panel, or extra frontend reviewer; any other provider only with the owner's explicit approval for that use.
+- Reviews follow `iddp/config.json`: one opposing reviewer at checkpoints and phase close-outs, `codex` when Claude implemented and `sonnet` (a Claude subagent) when Codex implemented. No fallback, backup, panel or frontend extra reviewer; if the reviewer is unavailable or the review is inconclusive, stop and ask the repository owner. Any other provider only with the repository owner's explicit approval for that use.
 - Doc sync is required before any commit and at every phase close-out. Update the initiative plan, `.ai/registry.yml`, and `ROADMAP.md` when reality changed.
 - Commits always require explicit user approval. Do not auto-commit after a passing review.
 - The repo does not use commit-ready stamps or approval stamp files in the active workflow.
