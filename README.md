@@ -77,32 +77,29 @@ docker compose config
 ## Current Source Of Truth
 
 - `CLAUDE.md` — repo-wide engineering rules and architecture constraints
-- `ROADMAP.md` — high-level delivery and feature status
-- `.ai/registry.yml` — machine-readable initiative index
+- Work and delivery status: Linear (`CLAUDE.md` § Work Tracking)
+- `ROADMAP.md`, `.ai/registry.yml` — status of legacy initiatives not yet moved to Linear
 - `.ai/initiatives/<lane>/<initiative-id>/guidance.md` — initiative-specific constraints
 - `.ai/initiatives/<lane>/<initiative-id>/plan.md` — initiative execution status and acceptance criteria
 
 ## AI Skills
 
-Use the lightweight `.ai` control plane with these skills:
+These skills drive the `.ai` control plane, which applies only to legacy initiatives not yet moved to Linear (`CLAUDE.md` § Work Tracking):
 
 - `/control-plane setup` — onboard a new repo or migrate an old repo to the new `.ai` structure
 - `/control-plane audit` — inspect the repo for stale control-plane files, drift, or inconsistencies
 - `/control-plane fix` — repair control-plane issues found in the audit
-- `/initiative create` — create a new tracked initiative with `guidance.md` and `plan.md`
 - `/initiative checkpoint` — stop at a checkpoint boundary, run verification, run checkpoint review, run doc sync, then ask whether to commit
 - `/initiative review` — manually trigger a review without committing
-- `/initiative phase-close` — run a multi-reviewer phase closeout, doc sync, then ask whether to commit
+- `/initiative phase-close` — run the phase closeout review, doc sync, then ask whether to commit
 - `/initiative doc-sync` — reconcile `plan.md`, `.ai/registry.yml`, and `ROADMAP.md` without implying review passed
 - `/initiative handoff` — generate or refresh `.ai/handoffs/<initiative-id>.md` for the next fresh session
 - `/tests audit|design|run|coverage` — inspect and run the verification stack
-- `/kimi-coworker` — optional extra reviewer or implementer for frontend-heavy work
 
-Reviewer defaults:
+Reviewer defaults (legacy initiatives only; Linear work follows `CLAUDE.md` § Work Tracking):
 
-- single-reviewer checkpoint: `codex`
-- multi-reviewer checkpoint or phase closeout: `codex` + `sonnet`
-- frontend-heavy review: add `kimi` when useful
+- checkpoint and phase closeout: one opposing reviewer, `codex` when Claude implemented and `sonnet` (a Claude subagent) when Codex implemented (`opposing_review` in `.ai/iddp/config.json`)
+- no fallback, backup, panel or frontend extra reviewer; any other provider only with the repository owner's explicit approval for that use
 
 Commit policy:
 
