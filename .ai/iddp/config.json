@@ -1,13 +1,19 @@
 {
   "commit_mode": "approval_required",
   "doc_sync_before_commit": true,
+  "opposing_review": {
+    "claude": "codex",
+    "codex": "sonnet"
+  },
   "checkpoint": {
-    "default_reviewers": ["codex"],
-    "fallback_reviewer": "sonnet",
-    "frontend_extra_reviewer": "kimi"
+    "default_reviewers": [
+      "codex"
+    ]
   },
   "phase_close": {
-    "default_reviewers": ["codex", "sonnet"],
-    "frontend_extra_reviewer": "kimi"
-  }
+    "default_reviewers": [
+      "codex"
+    ]
+  },
+  "_reviewer_note": "Applies only to legacy .ai initiatives not yet moved to Linear (since 2026-11-02). Opposing review per opposing_review: the agent that implemented never reviews; one reviewer at checkpoints and phase close. No fallback, backup, panel or frontend extra reviewer: if the selected reviewer is unavailable or the review is inconclusive, stop and ask the repository owner. Any other provider only with the repository owner's explicit approval for that use."
 }
