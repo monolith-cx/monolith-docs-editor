@@ -258,9 +258,10 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 ## Next step
 
 - **As of 2026-11-02:**
-  1. Commit this branch (`docs/edit-6-6-secrets`) and Platform's (`docs/udoc-edit-6-6-secrets`) by PR, with Josh's approval (tracked as DOC-1). EDIT-6.6 is done.
-  2. EDIT-2.9 (editor-page framing), its checkpoint, and a new image.
-  3. EDIT-6.7, with a stub consumer that has https origins.
+  1. EDIT-2.9 (editor-page framing): code-complete and reviewed on `feat/edit-2-9-frame-ancestors` (plan status line); merge by PR with Josh's approval, then build the image on `main` (`Images` workflow).
+  2. EDIT-6.7, with a stub consumer that has https origins, on the new image.
+  3. Before `fastmail-connect` or the Connect extension is hosted again: register `returnOrigin: https://app.fastmail.com` (EDIT-2.9.b).
+- **Done since:** EDIT-6.6 merged (PR #10; Platform PR #148).
 - **Done since the 2026-10-31 list:** triage merged (PR #8), the image built, `standalone-app` archived, root steps decided.
 - **Earlier (2026-10-25):**
 

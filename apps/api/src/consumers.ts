@@ -11,6 +11,7 @@
  */
 import { config } from './config.js';
 import { UrlRefused, checkUrl } from './safe-url.js';
+import { isOrigin } from './origins.js';
 
 export interface JwksAuth {
   mode: 'jwks';
@@ -66,13 +67,7 @@ export const PROFILES: readonly Profile[] = ['document', 'template', 'view'];
 let consumers: Consumer[] | undefined;
 
 function isWebOrigin(value: string, strict: boolean): boolean {
-  try {
-    const u = new URL(value);
-    if (u.origin !== value) return false;
-    return u.protocol === 'https:' || (!strict && u.protocol === 'http:');
-  } catch {
-    return false;
-  }
+  return isOrigin(value) && (value.startsWith('https://') || (!strict && value.startsWith('http://')));
 }
 
 /** Configuration errors (empty = valid). `strict` is everything except `EDITOR_ENV=local`. */

@@ -8,6 +8,7 @@ describe('editor page (EDIT-2.6)', () => {
       title: '</title><script>alert(1)</script>',
       config: { editorConfig: { plugins: { options: { x: '</script><script>alert(2)</script>\u2028' } } } },
       token: 'a.b.c',
+      frameAncestors: "'none'",
     });
     expect(page.html).not.toContain('<script>alert(1)</script>');
     expect(page.html).toContain('&lt;/title&gt;&lt;script&gt;');
@@ -17,19 +18,24 @@ describe('editor page (EDIT-2.6)', () => {
   });
 
   it('carries a strict CSP with a nonce, admitting only DocumentServer for scripts and frames', () => {
-    const page = renderEditorPage({ dsPublicUrl: 'https://app.example.com/', title: 't', config: {}, token: 't' });
+    const page = renderEditorPage({ dsPublicUrl: 'https://app.example.com/', title: 't', config: {}, token: 't', frameAncestors: "'self' https://crm.example.com" });
     const nonce = /'nonce-([^']+)'/.exec(page.csp)?.[1];
     expect(nonce).toBeTruthy();
     expect(page.csp).toContain("default-src 'none'");
     expect(page.csp).toContain(`script-src 'nonce-${nonce}' https://app.example.com`);
     expect(page.csp).toContain('frame-src https://app.example.com');
+    expect(page.csp).toContain("frame-ancestors 'self' https://crm.example.com");
     expect(page.html.split(`nonce="${nonce}"`).length - 1).toBe(3);
     expect(page.html).toContain('https://app.example.com/web-apps/apps/api/documents/api.js');
   });
 
   it('expired page links back only when the consumer is known', () => {
-    expect(renderExpiredPage('https://crm.example.com').html).toContain('href="https://crm.example.com"');
-    expect(renderExpiredPage(undefined).html).not.toContain('href=');
+    const known = renderExpiredPage('https://crm.example.com', "'self' https://crm.example.com");
+    expect(known.html).toContain('href="https://crm.example.com"');
+    expect(known.csp).toContain("frame-ancestors 'self' https://crm.example.com");
+    const unknown = renderExpiredPage(undefined, "'none'");
+    expect(unknown.html).not.toContain('href=');
+    expect(unknown.csp).toContain("frame-ancestors 'none'");
   });
 
   it('scriptSafeJson escapes the characters that can end a script element or a string', () => {

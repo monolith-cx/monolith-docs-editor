@@ -148,6 +148,14 @@ describe('profile-capable consumers (E5)', () => {
     expect(validateConsumersConfig([c], false)).toEqual([]);
   });
 
+  it('refuses origins whose host could change a CSP source list (EDIT-2.9)', () => {
+    for (const bad of ['https://a.com;script-src', 'https://*.a.com', 'https://a.com,b']) {
+      const errors = validateConsumersConfig([profileConsumer({ panelOrigins: [bad], returnOrigin: bad })], false).join(' ');
+      expect(errors).toContain('panelOrigins');
+      expect(errors).toContain('returnOrigin');
+    }
+  });
+
   it('refuses unknown profiles, ids outside [0-9A-Za-z_-], and badly named secret refs', () => {
     expect(validateConsumersConfig([profileConsumer({ profiles: ['admin' as never] })], true).join(' ')).toContain('profiles');
     expect(validateConsumersConfig([profileConsumer({ id: 'crm.prod' })], true).join(' ')).toContain('[0-9A-Za-z_-]');

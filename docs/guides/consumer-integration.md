@@ -22,10 +22,10 @@ surface carries every field below; the service refuses to start otherwise.
 | `profiles` | Any of `document`, `template`, `view`. Absent: legacy request shape only (section 8). |
 | `callbackUrl` | The one notification endpoint. https outside `EDITOR_ENV=local`; resolved and pinned to public addresses at every delivery; redirects are not followed. |
 | `notificationSecretRef` | The environment variable holding the notification secret, named outright (e.g. `EDITOR_NOTIFY_SECRET_CRM`). `<name>_PREVIOUS` holds the previous secret during a rotation. |
-| `panelOrigins` | Exact origins the consumer's panel pages are served from. |
+| `panelOrigins` | Exact origins the consumer's panel pages are served from. Also framing origins (below). |
 | `fileHosts` | Hosts an `open` `fileUrl` may name. |
 | `convertSourceHosts`, `convertUploadHosts` | Hosts a conversion may read from and upload to (EDIT-3). |
-| `returnOrigin` | Where the expired page links back to. |
+| `returnOrigin` | Where the expired page links back to. Also a framing origin (below). |
 
 Secrets are created per environment in 1Password and Secret Manager and recorded by name in
 `CREDENTIALS.md`. The consumer holds the same notification secret. Outside `local` the service
@@ -51,7 +51,8 @@ shorter than 32 bytes, or when two consumers name the same secret. At start it a
 ```
 
 Answer: `{ "editorUrl": "https://editor…/editor/<sealed token>", "key": "crm.ctr_8f3k2.e14", "expiresAt": "…" }`.
-Open `editorUrl` in an iframe or a tab. Nothing else is needed on the page.
+Open `editorUrl` in an iframe or a tab. Nothing else is needed on the page. An iframe works only from
+one of your registered origins (`panelOrigins` or `returnOrigin`; section 3, Framing).
 
 ### Profiles
 
@@ -125,8 +126,12 @@ expires**: a drop ends DocumentServer's current session for the key, but loading
 again opens the key again. Bound that by keeping the signed file URL short-lived, and by answering
 any notification for a key you have closed with `409 {"code":"key_closed"}` (section 4).
 
-The page does not yet send `frame-ancestors` (a recorded follow-up), so any site can frame it;
-what a framing site can do is limited to what the URL's holder can already do.
+**Framing (EDIT-2.9):** the page sends `frame-ancestors 'self'` plus the opening consumer's own
+`panelOrigins` and `returnOrigin`, exact origins only, and never another consumer's. A consumer that
+registered neither gets `frame-ancestors 'none'`: its editor opens only top-level (a tab). The
+browser checks every ancestor, so an iframe inside a page inside your app needs each of those
+origins registered. The expired page follows the same rule for the consumer an expired token names,
+and `'none'` for a tampered or unknown token.
 
 - An expired token from a known consumer shows a page that links to `returnOrigin`.
 - A tampered or unknown token shows the same page with no link and no detail.
@@ -387,6 +392,11 @@ falls back to the URL's. Refused: `callbackUrl`, `saveTo`, a GCS `bucket/object`
 shape is removed once no registered consumer uses it.
 
 ## 9. Changelog
+
+**EDIT-2.9 (2026-11-02).** Changed: the editor page and the expired page send `frame-ancestors`:
+`'self'` and the opening consumer's `panelOrigins` and `returnOrigin`, or `'none'` (section 3). A
+consumer that frames the editor must register the origin it frames from. Origins whose host holds
+anything but DNS labels or a bracketed IPv6 address are refused at load.
 
 **EDIT-5 (2026-10-18).** Added: the panel bridge (section 7), served from `/plugins/udoc-bridge/` on
 the service's origin; protocol 1 with six operations.

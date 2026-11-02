@@ -79,8 +79,9 @@ export function buildApp(options: BuildAppOptions = {}) {
     if (req.url.startsWith(PLUGIN_PREFIX)) {
       // The bridge plugin is framed by DocumentServer: its route sets frame-ancestors itself (EDIT-5.1).
     } else if (req.url.startsWith('/editor/')) {
-      // Editor pages are loaded in iframes by consuming apps (Fastmail Connect, CRM).
-      // Allow cross-origin framing — no X-Frame-Options or restrictive CSP.
+      // Editor pages are framed by their own consumer's app: the route's CSP sets frame-ancestors from
+      // that consumer's registered origins, or 'none' (EDIT-2.9). No X-Frame-Options here, which could
+      // only say DENY or SAMEORIGIN.
     } else if (req.url.startsWith('/api/')) {
       reply.header('X-Frame-Options', 'DENY');
       reply.header('Content-Security-Policy', "default-src 'none'");

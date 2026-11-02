@@ -29,6 +29,7 @@ import { CONVERT_FILE_TYPES, ConvertError, convertToPdf } from '../convert.js';
 import { buildEditorConfig } from '../editor-config.js';
 import { renderEditorPage, renderExpiredPage } from '../editor-page.js';
 import { hostOf, keyRef } from '../log-safety.js';
+import { consumerFrameAncestors } from '../origins.js';
 import { STATUS_EVENTS, buildNotification, deliver } from '../notify.js';
 import { recordSource, sourceActive, sourceSignal } from '../source-outcomes.js';
 import { partsStream, readCapped } from '../capped-read.js';
@@ -287,8 +288,9 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     reply.header('Referrer-Policy', 'no-referrer');
     const opened = openSession(req.params.token, config.sealKeys);
     if (!opened.ok) {
-      const returnOrigin = opened.reason === 'expired' && opened.consumer ? findConsumerById(opened.consumer)?.returnOrigin : undefined;
-      const page = renderExpiredPage(returnOrigin);
+      // Only an expired token names its consumer (it was authenticated before its expiry was read).
+      const named = opened.reason === 'expired' && opened.consumer ? findConsumerById(opened.consumer) : undefined;
+      const page = renderExpiredPage(named?.returnOrigin, consumerFrameAncestors(named));
       reply.header('Content-Security-Policy', page.csp);
       return reply.status(410).type('text/html').send(page.html);
     }
@@ -306,7 +308,13 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
     const editorConfig = buildEditorConfig(session, { callbackUrl, bridgePluginConfigUrl, documentUrl });
     const token = jwt.sign(editorConfig, config.onlyofficeJwtSecret, { algorithm: 'HS256' });
-    const page = renderEditorPage({ dsPublicUrl: config.onlyofficePublicUrl, title: opened.payload.n, config: editorConfig, token });
+    const page = renderEditorPage({
+      dsPublicUrl: config.onlyofficePublicUrl,
+      title: opened.payload.n,
+      config: editorConfig,
+      token,
+      frameAncestors: consumerFrameAncestors(findConsumerById(session.c)),
+    });
     reply.header('Content-Security-Policy', page.csp);
     return reply.type('text/html').send(page.html);
   });
