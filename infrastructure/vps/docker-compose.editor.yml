@@ -18,7 +18,8 @@ services:
     # Changed only through a battery run, by the deployer, never by vps-deploy.sh.
     image: onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3
     # JWT_SECRET only: the same value as the API's ONLYOFFICE_JWT_SECRET.
-    env_file: [env/editor-documentserver.env]
+    # The box's naming: editor-documentserver-dev.env in dev, editor-documentserver.env in prod.
+    env_file: [/srv/monolith/<env>/env/editor-documentserver-<env>.env]
     environment:
       JWT_ENABLED: "true"
       JWT_HEADER: Authorization
@@ -62,7 +63,8 @@ services:
     # The box pulls with a short-lived token and keeps no login (Platform FEX-4.1; README, Images).
     image: ghcr.io/monolith-cx/editor-api:<sha>
     # Secrets and per-environment values (editor-api.env.example lists the names).
-    env_file: [env/editor-api.env]
+    # The box's naming: editor-api-dev.env in dev, editor-api.env in prod.
+    env_file: [/srv/monolith/<env>/env/editor-api-<env>.env]
     environment:
       NODE_ENV: production
       PORT: "3020"

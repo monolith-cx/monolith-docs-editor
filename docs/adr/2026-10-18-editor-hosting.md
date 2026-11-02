@@ -126,7 +126,7 @@ E6c (`-0022`) ran on this development box. Memory is from `docker stats`, so it 
 - **Not measured:**
   - large documents;
   - a converter process on a 100 MB file;
-  - DocumentServer's peak during font generation at start-up (F15). The runbook watches memory and `OOMKilled` over the first start.
+  - DocumentServer's peak during font generation at start-up (F15). The runbook watches memory and `OOMKilled` over the first start. Measured at the dev stand-up (2026-11-01): 476 MiB peak, about 400 MiB settled, no OOM.
 - **Limits:**
   - DocumentServer: `mem_limit` 3 GiB. That is about eight times the measured steady state, as headroom for the unmeasured cases.
   - API: 1.5 GiB. That is above its file ceiling ((source reads + conversions) × 100 MB = 800 MB by default) plus the runtime.

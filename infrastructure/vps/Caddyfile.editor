@@ -14,15 +14,37 @@
 # Upstreams by their per-environment names (editor-api-dev, editor-documentserver-dev): Caddy joins
 # both environments' networks, so the unqualified alias `editor-api` would be ambiguous here.
 #
-# No `log` directive: this host must not get an access log. Editor pages, DocumentServer's cache
-# files, and co-editing paths carry a capability in the path, and signed URLs carry it in the query
-# (EDIT-4). If an access log is ever needed, it must drop the path and query the way the nginx map did.
-# Residual (ERRORS.md, 2026-10-18): Caddy's error log records the request URI when an upstream fails,
-# like nginx's did; the box's global log settings decide that, at the stand-up (EDIT-6.6).
+# Logs: editor pages, DocumentServer's cache files, and co-editing paths carry a capability in the
+# path, and signed URLs carry it in the query (EDIT-4), so nothing this host logs may hold the request
+# URI. The host's `log editor` names its loggers and discards its access log (no access log is
+# written). Caddy's error log for the host, which on an upstream failure records the request URI, goes
+# to `http.log.error.editor`; the two global loggers below, merged into the box's global options
+# block, write it with the URI and Referer deleted and keep it out of the default log (ERRORS.md,
+# 2026-10-18; decided and tested at the EDIT-6.6 stand-up on caddy 2.11.4 (the box's `caddy:2` image, v2.11.4): a 502 for
+# /editor/<token>?<signature> logged status, error, and host, and no token). Other hosts are unchanged.
+#
+# Global options (merge into the box's existing `{ ... }` block):
+#
+#	log editor-errors {
+#		include http.log.error.editor
+#		format filter {
+#			wrap json
+#			fields {
+#				request>uri delete
+#				request>headers>Referer delete
+#			}
+#		}
+#	}
+#	log default {
+#		exclude http.log.error.editor
+#	}
 #
 # No Referrer-Policy here: the editor page sends its own `no-referrer` (its path is a capability), and
 # a value set in this block would replace it (battery E6d checks the page's header through Caddy).
 editor-dev.monolith.cx {
+	log editor {
+		output discard
+	}
 	header {
 		X-Content-Type-Options nosniff
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
