@@ -12,10 +12,9 @@ Monolith Docs is a standalone AGPL document-editing service built around OnlyOff
 
 This repo integrates with Monolith Platform for future standalone auth, entitlements, provisioning, and shared ecosystem contracts.
 
-- Platform ecosystem docs: `C:\Dev\monolith-platform\docs\ecosystem\`
-- Integration status: `C:\Dev\monolith-platform\docs\ecosystem\integration-status\monolith-docs.yaml`
-- Shared contracts: `C:\Dev\monolith-platform\docs\ecosystem\contracts\`
-- Shared playbooks: `C:\Dev\monolith-platform\docs\ecosystem\playbooks\`
+- Platform ecosystem docs: `monolith-platform/docs/ecosystem/` (private repository)
+- Shared contracts: `monolith-platform/docs/ecosystem/contracts/`
+- Shared playbooks: `monolith-platform/docs/ecosystem/playbooks/`
 - Cross-product work and sequencing: tracked privately by the maintainers; nothing in it is needed to build or test this repo
 
 Rules:
