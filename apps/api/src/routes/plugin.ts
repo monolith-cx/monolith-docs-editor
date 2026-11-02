@@ -17,6 +17,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
 import { getConsumers } from '../consumers.js';
+import { frameOrigins, isOrigin } from '../origins.js';
 
 export const PLUGIN_PREFIX = '/plugins/udoc-bridge/';
 
@@ -48,17 +49,6 @@ export function pluginProblems(): string[] {
   return missing.length ? [`the bridge plugin is missing ${missing.join(', ')} in EDITOR_PLUGIN_DIR (${config.pluginDir}), or they are not readable files`] : [];
 }
 
-/** Only exact web origins reach a CSP header (legacy-only consumers' entries are not validated at load). */
-function isOrigin(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  try {
-    const u = new URL(value);
-    return (u.protocol === 'https:' || u.protocol === 'http:') && u.origin === value;
-  } catch {
-    return false;
-  }
-}
-
 function originOf(url: string): string | null {
   try {
     return new URL(url).origin;
@@ -76,7 +66,7 @@ export async function pluginRoutes(app: FastifyInstance): Promise<void> {
   // DocumentServer's frame, inside the service's own editor page, inside the consumer's app when it
   // embeds the editor. So: DocumentServer, the service itself, and the registered consumers' origins.
   const ancestors = () => {
-    const consumers = getConsumers().flatMap((c) => [...(c.panelOrigins ?? []), ...(c.returnOrigin ? [c.returnOrigin] : [])]).filter(isOrigin);
+    const consumers = getConsumers().flatMap(frameOrigins);
     return ["'self'", ds, ...new Set(consumers)].join(' ');
   };
 

@@ -2,8 +2,9 @@
  * The editor page and the expired page (EDIT-2.6). Everything interpolated is escaped:
  * the title as HTML text, the config as JSON safe inside a <script> element (`<`, `>`, `&`,
  * U+2028, U+2029 escaped), and the page carries a strict CSP with a per-response nonce that
- * admits only DocumentServer's origin for scripts and frames. The page holds nothing beyond
- * what DocumentServer receives (the signed config, including the panel token, D14).
+ * admits only DocumentServer's origin for scripts and frames, and only the session's own consumer
+ * as a framing ancestor (`frame-ancestors`, EDIT-2.9; built by `consumerFrameAncestors`). The page
+ * holds nothing beyond what DocumentServer receives (the signed config, including the panel token, D14).
  */
 import { randomBytes } from 'node:crypto';
 
@@ -34,7 +35,7 @@ export interface RenderedPage {
   csp: string;
 }
 
-function csp(nonce: string, dsOrigin: string | null): string {
+function csp(nonce: string, dsOrigin: string | null, frameAncestors: string): string {
   const ds = dsOrigin ? ` ${dsOrigin}` : '';
   return [
     "default-src 'none'",
@@ -44,6 +45,7 @@ function csp(nonce: string, dsOrigin: string | null): string {
     `img-src${ds} data:`,
     "base-uri 'none'",
     "form-action 'none'",
+    `frame-ancestors ${frameAncestors}`,
   ].join('; ');
 }
 
@@ -55,7 +57,7 @@ function originOf(url: string): string | null {
   }
 }
 
-export function renderEditorPage(opts: { dsPublicUrl: string; title: string; config: unknown; token: string }): RenderedPage {
+export function renderEditorPage(opts: { dsPublicUrl: string; title: string; config: unknown; token: string; frameAncestors: string }): RenderedPage {
   const nonce = randomBytes(16).toString('base64');
   const dsOrigin = originOf(opts.dsPublicUrl);
   const apiJs = `${opts.dsPublicUrl.replace(/\/$/, '')}/web-apps/apps/api/documents/api.js`;
@@ -80,14 +82,15 @@ export function renderEditorPage(opts: { dsPublicUrl: string; title: string; con
   </script>
 </body>
 </html>`;
-  return { html, csp: csp(nonce, dsOrigin) };
+  return { html, csp: csp(nonce, dsOrigin, opts.frameAncestors) };
 }
 
 /**
  * Shown for an expired, tampered, or unknown editor token. It links back to the consumer only
- * when the token named one (an expired token); it never says which check failed.
+ * when the token named one (an expired token); it never says which check failed. It is shown inside
+ * the consumer's frame, so it takes the same `frame-ancestors` rule as the editor page.
  */
-export function renderExpiredPage(returnOrigin: string | undefined): RenderedPage {
+export function renderExpiredPage(returnOrigin: string | undefined, frameAncestors: string): RenderedPage {
   const nonce = randomBytes(16).toString('base64');
   const link = returnOrigin ? `<p><a href="${escapeHtml(returnOrigin)}" target="_top" rel="noopener">Go back and open the document again</a></p>` : '';
   const html = `<!DOCTYPE html>
@@ -106,5 +109,5 @@ export function renderExpiredPage(returnOrigin: string | undefined): RenderedPag
   ${link}
 </body>
 </html>`;
-  return { html, csp: csp(nonce, null) };
+  return { html, csp: csp(nonce, null, frameAncestors) };
 }

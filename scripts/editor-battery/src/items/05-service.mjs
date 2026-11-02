@@ -4,7 +4,7 @@
 import { controls, openDocx, paragraphs } from '../docx.mjs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { STUB_INTERNAL, WORK_DIR, events, resetStub, restartApi, setConsumerMode, sleep, stub, waitForEvent } from '../stack.mjs';
+import { STUB_A, STUB_B, STUB_C, STUB_INTERNAL, WORK_DIR, events, resetStub, restartApi, setConsumerMode, sleep, stub, waitForEvent } from '../stack.mjs';
 
 const API = 'http://127.0.0.1:18204';
 
@@ -359,4 +359,47 @@ const e2e = {
   },
 };
 
-export default [s1, s2, e2a, e2b, e2c, e2d, e2e];
+const s3 = {
+  id: 'S3',
+  order: 11.5,
+  title: "The editor page is framed only by its own consumer's origins (frame-ancestors)",
+  parent: 'EDIT-2.9',
+  async run({ context, secrets }) {
+    const opened = await openViaApi(secrets, documentBody({ mode: 'v', profile: 'view', panelUrl: undefined }));
+    if (opened.status !== 200) return { result: 'fail', evidence: [`open answered ${opened.status} ${JSON.stringify(opened.body)}`] };
+    const editorUrl = opened.body.editorUrl;
+    const csp = (await fetch(editorUrl)).headers.get('content-security-policy') ?? '';
+    const ancestors = /frame-ancestors ([^;]*)/.exec(csp)?.[1] ?? '(none sent)';
+    const framedFrom = async (origin) => {
+      const page = await context.newPage();
+      const refusals = [];
+      page.on('console', (msg) => {
+        if (/frame-ancestors/i.test(msg.text())) refusals.push(msg.text().slice(0, 200));
+      });
+      await page.goto(`${origin}/frame?src=${encodeURIComponent(editorUrl)}`, { waitUntil: 'domcontentloaded' });
+      // A framed editor page loads DocumentServer's editor in its own frame; a refused one loads nothing.
+      let loaded = false;
+      const deadline = Date.now() + 60_000;
+      while (!loaded && Date.now() < deadline && refusals.length === 0) {
+        loaded = page.frames().some((f) => f.name() === 'frameEditor');
+        if (!loaded) await sleep(500);
+      }
+      await page.close();
+      return { loaded, refusals };
+    };
+    const own = await framedFrom(STUB_A);
+    const other = await framedFrom(STUB_C);
+    // The battery consumer registers STUB_B as its panel origin and STUB_A as its return origin (compose.yml).
+    const ok = ancestors === `'self' ${STUB_B} ${STUB_A}` && own.loaded && own.refusals.length === 0 && !other.loaded && other.refusals.length > 0;
+    return {
+      result: ok ? 'pass' : 'fail',
+      evidence: [
+        `frame-ancestors ${ancestors}`,
+        `framed by the consumer's returnOrigin (18201): editor loaded ${own.loaded}, refusals ${own.refusals.length}`,
+        `framed by an unregistered origin (18203): editor loaded ${other.loaded}; ${other.refusals[0] ?? 'no refusal logged'}`,
+      ],
+    };
+  },
+};
+
+export default [s1, s2, e2a, e2b, e2c, e2d, e2e, s3];

@@ -4,6 +4,8 @@
 //   callback receiver, and the control API the runner uses.
 // Origin B (18202): a panel page on a different origin (UDOC-1.5 bridge tests).
 // Origin C (18203): a third origin for CORS checks (spike item 9e).
+// Origins A and C both serve /frame?src=<the service's editor URL>, a page that frames it (S3,
+// EDIT-2.9): A is the battery consumer's registered returnOrigin, C is registered nowhere.
 //
 // Everything it records is synthetic; the JWT secret is a random per-run value.
 import { createServer } from 'node:http';
@@ -171,9 +173,20 @@ async function fetcherOf(req) {
   return remote;
 }
 
+const SERVICE_EDITOR = 'http://127.0.0.1:18204/editor/';
+
+/** A page that frames one of the service's editor URLs, and nothing else. */
+function framePage(url, res) {
+  const src = url.searchParams.get('src') ?? '';
+  if (!src.startsWith(SERVICE_EDITOR) || !/^[A-Za-z0-9_-]+$/.test(src.slice(SERVICE_EDITOR.length))) return send(res, 400, { error: 'src must be a service editor URL' });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+  return res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>frame</title><style>html,body,iframe{margin:0;border:0;width:100%;height:100%}</style></head><body><iframe id="framed" src="${src}"></iframe></body></html>`);
+}
+
 async function originA(req, res) {
   const url = new URL(req.url, 'http://stub');
   const p = url.pathname;
+  if (req.method === 'GET' && p === '/frame') return framePage(url, res);
   if (req.method === 'GET' && p.startsWith('/fixtures/')) {
     events.push({ t: Date.now(), kind: 'fixture-fetch', path: p, ua: req.headers['user-agent'] ?? '', from: await fetcherOf(req) });
     return serveFile(res, path.join(WORK, 'fixtures'), p.slice('/fixtures/'.length));
@@ -311,7 +324,9 @@ async function originB(req, res) {
 }
 
 async function originC(req, res) {
-  const p = new URL(req.url, 'http://stub').pathname;
+  const url = new URL(req.url, 'http://stub');
+  const p = url.pathname;
+  if (req.method === 'GET' && p === '/frame') return framePage(url, res);
   const allow = p === '/cors/yes' ? { 'Access-Control-Allow-Origin': req.headers.origin ?? '*', 'Access-Control-Allow-Headers': 'content-type' } : {};
   if (req.method === 'OPTIONS') {
     res.writeHead(204, { ...allow, 'Access-Control-Allow-Methods': 'POST, GET' });

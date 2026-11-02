@@ -358,6 +358,48 @@ describe('GET /editor/:token (EDIT-2.3, 2.6)', () => {
       config.sealKeys = keys;
     }
   });
+
+  describe('frame-ancestors (EDIT-2.9)', () => {
+    const csp = (res: { headers: Record<string, unknown> }) => String(res.headers['content-security-policy']);
+    const ancestors = (res: { headers: Record<string, unknown> }) => /frame-ancestors ([^;]*)/.exec(csp(res))?.[1];
+
+    it("admits the session's own consumer and never another consumer's origins", async () => {
+      setConsumersForTest([crm(), fastmail, { ...crm(), id: 'docs', auth: { mode: 'api-key', key: 'docs-key' }, panelOrigins: ['https://docs-panel.test'], returnOrigin: 'https://docs.test' }]);
+      const { app, res } = await open(documentOpen());
+      const page = await app.inject({ method: 'GET', url: new URL(res.json<{ editorUrl: string }>().editorUrl).pathname });
+      expect(page.statusCode).toBe(200);
+      expect(ancestors(page)).toBe("'self' https://panel.test https://crm.test");
+      expect(csp(page)).not.toContain('docs');
+      expect(page.headers['x-frame-options']).toBeUndefined();
+    });
+
+    it("gives a consumer that registered no origin 'none'", async () => {
+      const { app, res } = await open({ fileUrl: 'http://editor-api:3020/api/files/abc.docx', fileName: 'a.docx', user: { id: 'c1', name: 'U' }, permissions: { edit: false } }, 'fm-key');
+      expect(res.statusCode).toBe(200);
+      const page = await app.inject({ method: 'GET', url: new URL(res.json<{ editorUrl: string }>().editorUrl).pathname });
+      expect(page.statusCode).toBe(200);
+      expect(ancestors(page)).toBe("'none'");
+    });
+
+    it("frames the expired page by the consumer an expired token names, and an unreadable token's by no one", async () => {
+      const app = buildApp();
+      const expired = sealSession({ p: 'document', c: 'crm', k: 'crm.d.e1', u: { id: 'u', name: 'U' }, f: FILE, n: 'a.docx', exp: Date.now() - 1 }, config.sealKeys);
+      const res1 = await app.inject({ method: 'GET', url: `/editor/${expired}` });
+      expect(res1.statusCode).toBe(410);
+      expect(ancestors(res1)).toBe("'self' https://panel.test https://crm.test");
+      const tampered = `${expired.slice(0, -3)}${expired.slice(-3) === 'AAA' ? 'BBB' : 'AAA'}`;
+      const res2 = await app.inject({ method: 'GET', url: `/editor/${tampered}` });
+      expect(res2.statusCode).toBe(410);
+      expect(ancestors(res2)).toBe("'none'");
+      const res3 = await app.inject({ method: 'GET', url: '/editor/not-a-token' });
+      expect(res3.statusCode).toBe(410);
+      expect(ancestors(res3)).toBe("'none'");
+      const gone = sealSession({ p: 'document', c: 'removed', k: 'removed.d.e1', u: { id: 'u', name: 'U' }, f: FILE, n: 'a.docx', exp: Date.now() - 1 }, config.sealKeys);
+      const res4 = await app.inject({ method: 'GET', url: `/editor/${gone}` });
+      expect(ancestors(res4)).toBe("'none'");
+      expect(res4.body).not.toContain('href=');
+    });
+  });
 });
 
 /** The document URL DocumentServer is told to fetch, read from the rendered editor page. */
