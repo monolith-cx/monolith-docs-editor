@@ -19,6 +19,7 @@ surface carries every field below; the service refuses to start otherwise.
 |---|---|
 | `id` | `[0-9A-Za-z_-]+`. The first component of every key the consumer opens. |
 | `auth` | `hmac` or `jwks`: how `open`, `drop`, and `forgotten` calls authenticate. These are server-to-server calls from the consumer's backend; the service's CORS admits only `GET` and `POST` and no browser should hold a consumer credential. `api-key` is accepted only under `EDITOR_ENV=local` (the scratch battery); the service refuses to start with one anywhere else. |
+| `hostname` | Optional. If any consumer is bound to the request's host name, only those consumers are eligible to authenticate it; otherwise the unbound consumers are. |
 | `profiles` | Any of `document`, `template`, `view`. Absent: legacy request shape only (section 8). |
 | `callbackUrl` | The one notification endpoint. https outside `EDITOR_ENV=local`; resolved and pinned to public addresses at every delivery; redirects are not followed. |
 | `notificationSecretRef` | The environment variable holding the notification secret, named outright (e.g. `EDITOR_NOTIFY_SECRET_CRM`). `<name>_PREVIOUS` holds the previous secret during a rotation. |
@@ -392,6 +393,8 @@ falls back to the URL's. Refused: `callbackUrl`, `saveTo`, a GCS `bucket/object`
 shape is removed once no registered consumer uses it.
 
 ## 9. Changelog
+
+**EDIT close-out (2026-11-02).** The `hostname` binding is listed in section 1 (it existed; the table omitted it). The contract draft `document-editing.md` is at 0.4.0-draft and matches this guide.
 
 **EDIT-2.9 (2026-11-02).** Changed: the editor page and the expired page send `frame-ancestors`:
 `'self'` and the opening consumer's `panelOrigins` and `returnOrigin`, or `'none'` (section 3). A
