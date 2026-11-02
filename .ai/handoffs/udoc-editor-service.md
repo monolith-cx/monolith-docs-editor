@@ -259,7 +259,7 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
 - **As of 2026-11-02:**
   1. EDIT-6.7 passed on editor-dev (plan, EDIT-6.7 "Done"): merge `feat/edit-6-7-acceptance` by PR with Josh's approval (tracked as DOC-3).
-  2. EDIT-7 (owner decision), then the EDIT close-out.
+  2. ~~EDIT-7~~ decided 2026-11-02: stay an AGPL peer (guidance E10). Next: the EDIT close-out.
   3. Before `fastmail-connect` or the Connect extension is hosted again: register `returnOrigin: https://app.fastmail.com` (EDIT-2.9.b).
 - **Done since:** EDIT-6.6 merged (PR #10; Platform PR #148); EDIT-2.9 merged (PR #11), its image built and deployed to editor-dev; EDIT-6.7 run with the acceptance stub (stopped afterwards; its consumer entry and files stay for a re-run).
 - **Done since the 2026-10-31 list:** triage merged (PR #8), the image built, `standalone-app` archived, root steps decided.
