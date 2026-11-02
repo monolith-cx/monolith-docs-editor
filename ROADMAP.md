@@ -8,15 +8,17 @@ This repo is now `monolith-docs-editor`, the AGPL OnlyOffice editing service. Th
 
 ## Active
 
-### Editor Service for Unified Document Authoring (EDIT)
-
-- Status: `active` (approved 2026-10-16; EDIT-4 log redaction code-complete and checkpoint-reviewed 2026-10-16; no hosted editor exists since the 2026-06-12 decommission, so it ships with the EDIT-6 stand-up; EDIT-1, the OnlyOffice 10.0.0.1 upgrade and repeatable battery, done 2026-10-18, Word round trip waived; EDIT-2, profiles, stateless sealed sessions, signed notifications, drop, and the editor page, code-complete and checkpoint-reviewed 2026-10-18, not deployed; EDIT-3, PDF conversion, code-complete and checkpoint-reviewed 2026-10-18 (found ADR F17, mitigated), not deployed; EDIT-5, the panel bridge plugin, code-complete and checkpoint-reviewed 2026-10-18 (ADR F18), not deployed; EDIT-6 hosting decided 2026-10-18 (the OVH VPS, `editor-dev.monolith.cx`), its local half (DocumentServer settings, the converter watchdog, capacity, the VPS fragment) code-complete and reviewed; EDIT-6.6, the dev stand-up at `editor-dev.monolith.cx`, done 2026-11-02; EDIT-2.9, editor-page `frame-ancestors`, code-complete and reviewed 2026-11-02; its image built; EDIT-6.7 acceptance passed 2026-11-02 on editor-dev with a hosted stub consumer; EDIT-7 decided 2026-11-02, stay an AGPL peer; next: the close-out)
-- Parent: ecosystem initiative `unified-document-authoring` (UDOC) in Monolith Platform, phase UDOC-1
-- Summary: Latest OnlyOffice Community with a repeatable battery re-run, named editor profiles, stateless per-open sessions in sealed editor URLs, signed and retried consumer notifications, drop, PDF conversion, log redaction, a product-agnostic panel bridge plugin, hosting and capacity, licence posture. Existing consumers keep the legacy open shape until they migrate.
-- Plan: `.ai/initiatives/active/udoc-editor-service/plan.md`
-- Guidance: `.ai/initiatives/active/udoc-editor-service/guidance.md`
+No initiative is active in this repo; the editor's follow-ups are tracked as issues outside it (DOC-6, -7, -8, -19, -20).
 
 ## Complete
+
+### Editor Service for Unified Document Authoring (EDIT)
+
+- Status: `completed` 2026-11-02 (UDOC-1, EDIT-1 to EDIT-7, accepted on editor-dev `editor-dev.monolith.cx`; close-out in the plan, reviewer Codex; licence: AGPL peer). History in the plan and handoff.
+- Parent: ecosystem initiative `unified-document-authoring` (UDOC) in Monolith Platform, phase UDOC-1
+- Summary: Latest OnlyOffice Community with a repeatable battery re-run, named editor profiles, stateless per-open sessions in sealed editor URLs, signed and retried consumer notifications, drop, PDF conversion, log redaction, a product-agnostic panel bridge plugin, hosting and capacity, licence posture. Existing consumers keep the legacy open shape until they migrate.
+- Plan: `.ai/initiatives/complete/udoc-editor-service/plan.md`
+- Guidance: `.ai/initiatives/complete/udoc-editor-service/guidance.md`
 
 ### Production Hardening
 

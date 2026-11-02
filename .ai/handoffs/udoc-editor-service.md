@@ -1,23 +1,32 @@
 # Handoff — Editor Service for Unified Document Authoring (EDIT)
 
-- **Updated:** 2026-11-02 (EDIT-6.7)
-- **Lane / status:** active / `active` (owner-approved 2026-10-16)
+- **Updated:** 2026-11-02 (EDIT close-out, DOC-5)
+- **Lane / status:** complete / `completed` 2026-11-02 (DOC-5); owner-approved 2026-10-16
 - **Parent:** Platform ecosystem initiative `unified-document-authoring` (UDOC), phase UDOC-1. EDIT-*n* implements UDOC-1.*n*.
-- **Plan:** `.ai/initiatives/active/udoc-editor-service/plan.md` · **Guidance:** `guidance.md` (local decisions E1–E8)
+- **Plan:** `.ai/initiatives/complete/udoc-editor-service/plan.md` · **Guidance:** `guidance.md` (local decisions E1–E10)
 
 ## Where things stand
 
 | Phase | State | Commit |
 |---|---|---|
 | EDIT-0 (charter) | Done | `0158323` |
-| EDIT-4 (log redaction) | Code-complete and reviewed; not deployed (no hosted editor since the 2026-06-12 decommission) | `9f54904`, `28a27d9` |
+| EDIT-4 (log redaction) | Done; deployed to editor-dev 2026-11-02 | `9f54904`, `28a27d9` |
 | EDIT-1 (OnlyOffice 10.0.0.1 and the battery) | Done (U13 waived by Josh) | `dfbb48e` |
-| EDIT-2 (UDOC-1.2) | Code-complete 2026-10-18; not deployed | `c7bfa21` |
-| EDIT-3 (UDOC-1.3) | Code-complete 2026-10-18; not deployed | `0f70bf0` |
-| EDIT-5 (UDOC-1.5) | Code-complete 2026-10-18; not deployed | `381d50b` |
-| EDIT-6 (UDOC-1.6) | 6.1–6.5 (the local half) code-complete and reviewed 2026-10-18; 6.6 (the dev stand-up) done 2026-11-02 (image `5397cf7@sha256:1ccf071f…`); 6.7 (acceptance) done 2026-11-02 on editor-dev with the acceptance stub; EDIT-2.9 (editor-page framing, from SA-1.7) added before 6.7 | `deca209`, `5397cf7` |
+| EDIT-2 (UDOC-1.2) | Done; deployed to editor-dev and accepted (EDIT-6.7) 2026-11-02 | `c7bfa21` |
+| EDIT-3 (UDOC-1.3) | Done; deployed to editor-dev and accepted (EDIT-6.7) 2026-11-02 | `0f70bf0` |
+| EDIT-5 (UDOC-1.5) | Done; deployed to editor-dev and accepted (EDIT-6.7) 2026-11-02 | `381d50b` |
+| EDIT-6 (UDOC-1.6) | Done 2026-11-02: dev stand-up (6.6), EDIT-2.9 framing, hosted acceptance (6.7) | `deca209`, `5397cf7` |
 
 EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
+
+### 2026-11-02: EDIT close-out (DOC-5) — complete
+
+- Every UDOC-1 acceptance item is shown with evidence in the plan's close-out table (UDOC-1.1–1.7).
+- The two logging `ERRORS.md` entries are resolved (Caddy's filter replaces the nginx path; DocumentServer's logs rotate on the box and hold no signed query). The "editor down everywhere" entry stays open with an update (the callers still point at dead hostnames; DOC-6).
+- The consumer guide and the contract draft were compared section by section; the draft moved to 0.4.0-draft in Platform and the guide gained the `hostname` binding.
+- Reviewer: Codex (the repo's one opposing reviewer since PR #14).
+- The initiative moved to `complete/`.
+- **Errors:** no new unresolved errors; two resolved.
 
 ### 2026-11-02: EDIT-6.6 step 8 (monitoring) done; EDIT-6.6 complete
 
@@ -228,39 +237,17 @@ EDIT-2's detail is in the plan's EDIT-2.1–2.8 status lines.
 
 ## Blockers and open decisions (Josh)
 
-- ~~**Deploy gate:** `standalone-app` Phase 0 must close or be re-baselined before EDIT-2 is deployed.~~ Resolved 2026-10-31: archived by Josh.
-- **A dev environment exists since 2026-11-01** (`editor-dev.monolith.cx`). EDIT-6.6 was the stand-up on the VPS (runbook `infrastructure/vps/README.md`), and each step needs Josh's approval:
-  - ~~secrets in 1Password, the env files, and Secret Manager~~ done 2026-11-01;
-  - ~~DNS for `editor-dev.monolith.cx`~~ done by Josh;
-  - ~~the files and compose merge~~ done 2026-11-01;
-  - ~~starting DocumentServer, then the API~~ done 2026-11-01;
-  - ~~Caddy, including its error-log decision~~ done 2026-11-01;
-  - ~~the watchdog's cron line and the `health-check.sh` entry~~ done 2026-11-02.
-- **Before the first deploy:**
-  - the editor image: EGM-2 (this repo's `github-migration`) adds the `Images` workflow, which pushes `ghcr.io/monolith-cx/editor-api:<sha>`, and names it in the compose fragment. The image path is ready (EGM-2.2, 2026-10-25): the first image is `ghcr.io/monolith-cx/editor-api:43784d4ac36ac1818e983a392be35b71ad866023@sha256:622275c39c7df9c57365f908e8a83b404ed8e83e3cc595f8a2df715d8027c4f1`, and the package is private, so the box needs the token pull;
-  - the repo's move to GitHub is complete (EGM, 2026-10-25: source of truth, CI, and the image are all on `monolith-cx`; `.ai/handoffs/github-migration.md`); the box pulls the image through Platform's FEX-4.1 `vps-deploy.sh` once the owner approves installing it;
-  - the box's pull: Platform FEX-4.1, `vps-deploy.sh`'s short-lived GHCR pull (no login kept on the box); until it lands, the runbook's by-hand pull;
-  - a decision on Caddy's error log for this host (`ERRORS.md`).
-- **Cloudflare (EDIT-4.2):** still blocked.
-- **DeepSeek reviewer:** unavailable until `op` is signed in on this host.
+- None for EDIT (complete 2026-11-02). Owner decisions still open sit in the follow-up issues: DOC-7 (Caddy refusal of DocumentServer's stock pages) and PLAT-9 (the VPS alert channel).
+- History: the deploy gate (`standalone-app`) was retired 2026-10-31; the stand-up's prerequisites and steps are in the dated sections above; EDIT-4.2's Cloudflare check is moot (the VPS hosts are DNS only); the DeepSeek reviewer was dropped by Josh for the close-out (Codex only).
 
 ## Errors
 
-- Four `ERRORS.md` entries were resolved in code, not deployed: the unsigned notification, the editor page, callback trust, and file-URL trust.
-- No new unresolved errors were found.
-- F16 is a design finding, recorded in the ADR; it is not a defect.
-- EDIT-3: one new unresolved error logged in `ERRORS.md` (2026-10-18 13:09): DocumentServer's converter wedges on a partial or slow source download (ADR F17). Known triggers are prevented in the service; recovery (health check and restart) is EDIT-6's.
-- EDIT-5: no new unresolved errors. Two defects were found and fixed in this checkpoint: the empty-`replace` loop and the `TRUST_PROXY` breadth. Nothing was added to `ERRORS.md`.
-- EDIT-6 (local half):
-  - **New unresolved entry** in `ERRORS.md` (2026-10-18 17:58): the shared Caddy's error log records full request URIs, editor tokens included. It was observed in a container, and is decided at the stand-up.
-  - **Updated entries:** DocumentServer's logs (retention is the image's logrotate) and the F17 converter (recovery built and proven). Both stay open until deployed.
+- **At close-out (2026-11-02):** no new unresolved errors. Resolved and deployed: every editor defect from 2026-10-16 to 2026-10-18 (notification signing, the editor page, callback and file-URL trust, logged URLs, the converter wedge's recovery, Caddy's and DocumentServer's logs). Still open in `ERRORS.md`: Dependabot's recount (DOC-8), the legacy callers' dead hostnames (DOC-6), and legacy upload sniffing (DOC-20).
+- History by checkpoint (as recorded then): EDIT-2 resolved four entries in code; EDIT-3 logged the converter wedge (ADR F17); EDIT-5 found and fixed two defects in-checkpoint; EDIT-6 logged Caddy's error-log URI and updated the DocumentServer-log and converter entries, all three resolved on the box by EDIT-6.6 and the close-out.
 
 ## Next step
 
-- **As of 2026-11-02:**
-  1. EDIT-6.7 passed on editor-dev (plan, EDIT-6.7 "Done"): merge `feat/edit-6-7-acceptance` by PR with Josh's approval (tracked as DOC-3).
-  2. ~~EDIT-7~~ decided 2026-11-02: stay an AGPL peer (guidance E10). Next: the EDIT close-out.
-  3. Before `fastmail-connect` or the Connect extension is hosted again: register `returnOrigin: https://app.fastmail.com` (EDIT-2.9.b).
+- **As of 2026-11-02: EDIT is complete** (close-out in the plan; DOC-5). Nothing is next in this initiative. Follow-ups are issues DOC-6 (legacy consumers register `https://app.fastmail.com` before re-hosting), DOC-7, DOC-8, DOC-19, DOC-20; UDOC continues at UDOC-2 in Platform.
 - **Done since:** EDIT-6.6 merged (PR #10; Platform PR #148); EDIT-2.9 merged (PR #11), its image built and deployed to editor-dev; EDIT-6.7 run with the acceptance stub (stopped afterwards; its consumer entry and files stay for a re-run).
 - **Done since the 2026-10-31 list:** triage merged (PR #8), the image built, `standalone-app` archived, root steps decided.
 - **Earlier (2026-10-25):**
