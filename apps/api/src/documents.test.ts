@@ -823,9 +823,14 @@ describe('drop and forgotten files (EDIT-2.5)', () => {
       expect(commands[0]).toMatchObject({ c: 'forcesave', key: 'crm.doc_1.e1', authorized: true });
     });
 
-    it('accepts an empty JSON object as the body', async () => {
-      const res = await buildApp().inject({ method: 'POST', url: '/api/documents/keys/crm.doc_1.e1/forcesave', headers: { authorization: 'Bearer crm-key' }, payload: {} });
+    it.each([
+      ['an empty JSON object', {}],
+      ['an unexpected field', { forceSave: true, key: 'crm.other.e1' }],
+    ])('ignores a body of %s', async (_label, payload) => {
+      const res = await buildApp().inject({ method: 'POST', url: '/api/documents/keys/crm.doc_1.e1/forcesave', headers: { authorization: 'Bearer crm-key' }, payload });
       expect(res.statusCode).toBe(200);
+      expect(commands[0]).toMatchObject({ c: 'forcesave', key: 'crm.doc_1.e1' });
+      expect(commands[0]).not.toHaveProperty('forceSave');
     });
 
     it("refuses another consumer's key, and a key it cannot parse, without reaching DocumentServer", async () => {

@@ -482,7 +482,7 @@ const s4 = {
     await framed.page.close();
 
     const exact = messages.every((m) => m.origin === API && Object.keys(m.data).join() === 'type,event,editing' && m.data.event === 'state' && typeof m.data.editing === 'boolean');
-    const both = messages.some((m) => m.data.editing) && messages.some((m) => !m.data.editing);
+    const both = messages[0]?.data.editing === true && messages.at(-1)?.data.editing === false;
 
     // The consumer's other registered origin also gets it.
     const second = await openViaApi(secrets, documentBody());
