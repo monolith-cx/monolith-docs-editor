@@ -4,6 +4,11 @@ Durable follow-up log for concrete errors found during sessions and left unresol
 
 ## Unresolved
 
+- [ ] 2026-11-04 19:38 PST - `apps/api/vitest.config.ts` - `pnpm --filter @monolith-docs/api run test` fails after a local build, because Vitest also runs the compiled `dist/*.test.js`
+  - Observed via: the API test run after `pnpm --filter @monolith-docs/api run build` (DOC-23): 36 test files, 6 failed, all under `dist/`. With `dist/` removed: 18 files, all passing.
+  - Impact: a false red for a developer who builds before testing. CI is not affected, because it tests before it builds.
+  - Left unresolved because: outside DOC-23's scope. The fix is to exclude `dist/` in the Vitest config.
+
 - [ ] 2026-10-19 16:41 PDT - repo dependencies (`pnpm-lock.yaml`) - GitHub Dependabot reports 76 vulnerable dependency alerts on the default branch: 1 critical, 31 high, 39 moderate, 5 low. The re-scan after the transfer to monolith-cx reported **91: 3 critical, 40 high, 44 moderate, 4 low** (push of `72f7551`, 2026-10-19)
   - Observed via: the GitHub push notice on the first push to the public repo (EGM-0.4, `32bb2db..e07f189`), pointing at `https://github.com/monolith-cx/monolith-docs-editor/security/dependabot`.
   - 2026-10-25 re-count (`gh api "…/dependabot/alerts?state=open&per_page=100" --paginate`): 101 open — 3 critical, 41 high, 50 medium, 7 low.

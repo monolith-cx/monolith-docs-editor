@@ -243,6 +243,41 @@ describe('POST /api/documents/open — profiles (EDIT-2.3)', () => {
     expect(res.json<{ error: string }>().error).toBe(error);
   });
 
+  describe('permissions (DOC-23)', () => {
+    const sealedPermissions = async (body: Record<string, unknown>) => {
+      const { app, res } = await open(body);
+      expect(res.statusCode).toBe(200);
+      const page = await app.inject({ method: 'GET', url: new URL(res.json<{ editorUrl: string }>().editorUrl).pathname });
+      const config = /var editorConfig = (.*);\n/.exec(page.body)?.[1] ?? '{}';
+      return (JSON.parse(config) as { document: { permissions: Record<string, boolean> } }).document.permissions;
+    };
+
+    it('leaves download and print on when permissions are not sent', async () => {
+      expect(await sealedPermissions(documentOpen())).toMatchObject({ download: true, print: true });
+    });
+
+    it('carries them through the sealed session into the signed config, a left-out one staying true', async () => {
+      expect(await sealedPermissions(documentOpen({ permissions: { download: false, print: false } }))).toMatchObject({ edit: true, download: false, print: false });
+      expect(await sealedPermissions(documentOpen({ permissions: { print: false } }))).toMatchObject({ download: true, print: false });
+    });
+
+    it('applies to every profile', async () => {
+      expect(await sealedPermissions(documentOpen({ profile: 'template', permissions: { download: false } }))).toMatchObject({ download: false, print: true });
+      expect(await sealedPermissions(documentOpen({ profile: 'view', mode: 'v', panelUrl: undefined, permissions: { download: false } }))).toEqual({ edit: false, download: false, print: true });
+    });
+
+    it('refuses edit: the profile decides editing', async () => {
+      const { res } = await open(documentOpen({ permissions: { edit: false } }));
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ error: string }>().error).toBe('field_not_allowed');
+    });
+
+    it('refuses a value that is not a boolean, and drops a field it does not name', async () => {
+      expect((await open(documentOpen({ permissions: { download: 'no' } }))).res.statusCode).toBe(400);
+      expect(await sealedPermissions(documentOpen({ permissions: { copy: false } }))).not.toHaveProperty('copy');
+    });
+  });
+
   it('refuses a key over 128 characters', async () => {
     setConsumersForTest([{ ...crm(), id: 'crm_tenant_identifier', auth: { mode: 'api-key', key: 'long-key' } }]);
     const { res } = await open(documentOpen({ documentRef: 'd'.repeat(96), revision: 'r'.repeat(24) }), 'long-key');
@@ -371,6 +406,21 @@ describe('GET /editor/:token (EDIT-2.3, 2.6)', () => {
       expect(ancestors(page)).toBe("'self' https://panel.test https://crm.test");
       expect(csp(page)).not.toContain('docs');
       expect(page.headers['x-frame-options']).toBeUndefined();
+    });
+
+    it("names only the session's own consumer's origins as the editing state's targets (DOC-23)", async () => {
+      setConsumersForTest([crm(), fastmail, { ...crm(), id: 'docs', auth: { mode: 'api-key', key: 'docs-key' }, panelOrigins: ['https://docs-panel.test'], returnOrigin: 'https://docs.test' }]);
+      const { app, res } = await open(documentOpen());
+      const page = await app.inject({ method: 'GET', url: new URL(res.json<{ editorUrl: string }>().editorUrl).pathname });
+      expect(page.body).toContain('var hostOrigins = ["https://panel.test","https://crm.test"];');
+      expect(page.body).not.toContain('docs.test');
+      expect(page.body).not.toContain('docs-panel.test');
+    });
+
+    it('gives a consumer that registered no origin no target for the editing state (DOC-23)', async () => {
+      const { app, res } = await open({ fileUrl: 'http://editor-api:3020/api/files/abc.docx', fileName: 'a.docx', user: { id: 'c1', name: 'U' }, permissions: { edit: false } }, 'fm-key');
+      const page = await app.inject({ method: 'GET', url: new URL(res.json<{ editorUrl: string }>().editorUrl).pathname });
+      expect(page.body).toContain('var hostOrigins = [];');
     });
 
     it("gives a consumer that registered no origin 'none'", async () => {
@@ -759,6 +809,77 @@ describe('drop and forgotten files (EDIT-2.5)', () => {
     const res = await buildApp().inject({ method: 'POST', url: '/api/documents/keys/crm.doc_1.e1/drop', headers: { authorization: 'Bearer crm-key' }, payload: { users: ['u1'] } });
     expect(res.statusCode).toBe(status);
     expect(res.json()).toEqual({ error: name });
+  });
+
+  describe('forcesave (DOC-23)', () => {
+    const forcesave = (key = 'crm.doc_1.e1', token = 'crm-key', app = buildApp()) =>
+      app.inject({ method: 'POST', url: `/api/documents/keys/${key}/forcesave`, headers: { authorization: `Bearer ${token}` } });
+
+    it("sends DocumentServer's forcesave for the key's own consumer", async () => {
+      const res = await forcesave();
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ result: 'ok' });
+      expect(commands).toHaveLength(1);
+      expect(commands[0]).toMatchObject({ c: 'forcesave', key: 'crm.doc_1.e1', authorized: true });
+    });
+
+    it.each([
+      ['an empty JSON object', {}],
+      ['an unexpected field', { forceSave: true, key: 'crm.other.e1' }],
+    ])('ignores a body of %s', async (_label, payload) => {
+      const res = await buildApp().inject({ method: 'POST', url: '/api/documents/keys/crm.doc_1.e1/forcesave', headers: { authorization: 'Bearer crm-key' }, payload });
+      expect(res.statusCode).toBe(200);
+      expect(commands[0]).toMatchObject({ c: 'forcesave', key: 'crm.doc_1.e1' });
+      expect(commands[0]).not.toHaveProperty('forceSave');
+    });
+
+    it("refuses another consumer's key, and a key it cannot parse, without reaching DocumentServer", async () => {
+      const other = await forcesave('crm.doc_1.e1', 'fm-key');
+      expect(other.statusCode).toBe(403);
+      expect(other.json()).toEqual({ error: 'not_your_key' });
+      const unparsed = await forcesave('not-a-key');
+      expect(unparsed.statusCode).toBe(403);
+      expect(commands).toHaveLength(0);
+    });
+
+    it('refuses a caller with no credential', async () => {
+      const res = await buildApp().inject({ method: 'POST', url: '/api/documents/keys/crm.doc_1.e1/forcesave' });
+      expect(res.statusCode).toBe(401);
+      expect(commands).toHaveLength(0);
+    });
+
+    it('answers "no changes" as a normal 200, not a failure', async () => {
+      commandAnswer = { error: 4 };
+      const res = await forcesave();
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ result: 'no_changes' });
+    });
+
+    it.each([
+      [1, 404, 'key_not_found'],
+      [2, 502, 'callback_url_not_correct'],
+      [3, 502, 'docserver_internal'],
+      [5, 502, 'command_not_correct'],
+      [6, 502, 'invalid_token'],
+      [99, 502, 'unknown'],
+    ])('maps forcesave error %i to HTTP %i', async (error, status, name) => {
+      commandAnswer = { error };
+      const res = await forcesave();
+      expect(res.statusCode).toBe(status);
+      expect(res.json()).toEqual({ error: name });
+    });
+
+    it('answers docserver_unreachable when the command service cannot be reached', async () => {
+      const url = config.onlyofficeUrl;
+      config.onlyofficeUrl = 'http://127.0.0.1:9';
+      try {
+        const res = await forcesave();
+        expect(res.statusCode).toBe(502);
+        expect(res.json()).toEqual({ error: 'docserver_unreachable' });
+      } finally {
+        config.onlyofficeUrl = url;
+      }
+    });
   });
 
   it('never answers "none" or "ok" for forgotten files when DocumentServer is failing', async () => {

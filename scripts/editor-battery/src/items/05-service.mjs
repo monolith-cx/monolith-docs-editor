@@ -4,6 +4,7 @@
 import { controls, openDocx, paragraphs } from '../docx.mjs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { chromium } from 'playwright';
 import { STUB_A, STUB_B, STUB_C, STUB_INTERNAL, WORK_DIR, events, resetStub, restartApi, setConsumerMode, sleep, stub, waitForEvent } from '../stack.mjs';
 
 const API = 'http://127.0.0.1:18204';
@@ -42,6 +43,11 @@ export async function openServicePage(context, editorUrl) {
   });
   await page.goto(editorUrl, { waitUntil: 'domcontentloaded' });
   await page.locator('iframe[name="frameEditor"]').waitFor({ timeout: 90_000 });
+  await waitForDrawn(page);
+  return { page, cspViolations };
+}
+
+async function waitForDrawn(page) {
   const deadline = Date.now() + 90_000;
   for (;;) {
     const frame = page.frames().find((f) => f.name() === 'frameEditor');
@@ -51,14 +57,36 @@ export async function openServicePage(context, editorUrl) {
     await sleep(500);
   }
   await sleep(3000);
-  return { page, cspViolations };
 }
 
-export async function typeAtDocumentEnd(page, text) {
-  const box = await page.locator('iframe[name="frameEditor"]').boundingBox();
+/** Opens an editor URL in `origin`'s `/frame` page; the page records every editor message its top window gets. */
+export async function openFramed(context, origin, editorUrl) {
+  const page = await context.newPage();
+  const cspViolations = [];
+  page.on('console', (msg) => {
+    if (/Content Security Policy/i.test(msg.text())) cspViolations.push(msg.text().slice(0, 160));
+  });
+  await page.addInitScript(() => {
+    if (window !== window.top) return;
+    window.__messages = [];
+    window.addEventListener('message', (e) => {
+      if (e.data?.type === 'monolith-editor') window.__messages.push({ origin: e.origin, data: e.data });
+    });
+  });
+  await page.goto(`${origin}/frame?src=${encodeURIComponent(editorUrl)}`, { waitUntil: 'domcontentloaded' });
+  await waitForDrawn(page);
+  return { page, cspViolations, editor: page.frameLocator('#framed').locator('iframe[name="frameEditor"]'), messages: () => page.evaluate(() => window.__messages) };
+}
+
+async function typeOnly(page, text, editor) {
+  const box = await editor.boundingBox();
   await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.5);
   await page.keyboard.press('Control+End');
   await page.keyboard.type(text, { delay: 30 });
+}
+
+export async function typeAtDocumentEnd(page, text, editor = page.locator('iframe[name="frameEditor"]')) {
+  await typeOnly(page, text, editor);
   await sleep(4000);
 }
 
@@ -402,4 +430,133 @@ const s3 = {
   },
 };
 
-export default [s1, s2, e2a, e2b, e2c, e2d, e2e, s3];
+const forcesave = async (key, token) => {
+  const res = await fetch(`${API}/api/documents/keys/${key}/forcesave`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+  return { status: res.status, body: await res.json() };
+};
+
+/** Waits until the framed page's last editor message says `editing: false`, after at least `after` messages. */
+async function waitForSent(framed, after) {
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    const all = await framed.messages();
+    if (all.length > after && all.at(-1).data.editing === false) return all;
+    if (Date.now() > deadline) return all;
+    await sleep(250);
+  }
+}
+
+const s4 = {
+  id: 'S4',
+  order: 11.6,
+  title: 'Saving on request through the service, and the editing state reaching only the framing consumer',
+  parent: 'DOC-23',
+  async run({ context, secrets }) {
+    await resetStub();
+    const opened = await openViaApi(secrets, documentBody());
+    if (opened.status !== 200) return { result: 'fail', evidence: [`open answered ${opened.status} ${JSON.stringify(opened.body)}`] };
+    const { key, editorUrl } = opened.body;
+    const framed = await openFramed(context, STUB_A, editorUrl);
+
+    // Nothing edited yet: a normal answer, and the file's key is live.
+    const untouched = await forcesave(key, secrets.apiKey);
+    const refused = await forcesave(key, secrets.legacyKey);
+    const unknown = await forcesave(`battery.never_opened_${Date.now().toString(36)}.e1`, secrets.apiKey);
+
+    // While the browser may still hold the edit. Which answer comes depends on when the editor's
+    // batch lands, so a normal answer is required and the one given is recorded: a Save button has to deal with it.
+    await typeOnly(framed.page, ' 20202 pending', framed.editor);
+    const reported = (await framed.messages()).at(-1)?.data.editing;
+    const whileEditing = await forcesave(key, secrets.apiKey);
+    const sent1 = await waitForSent(framed, 0);
+    await sleep(2000);
+
+    const count = (await framed.messages()).length;
+    const t = Date.now();
+    await typeOnly(framed.page, ' 30303 on request', framed.editor);
+    const sent2 = await waitForSent(framed, count);
+    const save = await forcesave(key, secrets.apiKey);
+    const saved = await waitForEvent((e) => e.kind === 'consumer-callback' && e.key === key && e.status === 6 && e.t >= t, 60_000);
+    const kept = (await savedText(saved)).some((p) => p.includes('30303 on request'));
+    const messages = await framed.messages();
+    await framed.page.close();
+
+    const exact = messages.every((m) => m.origin === API && Object.keys(m.data).join() === 'type,event,editing' && m.data.event === 'state' && typeof m.data.editing === 'boolean');
+    const both = messages[0]?.data.editing === true && messages.at(-1)?.data.editing === false;
+
+    // The consumer's other registered origin also gets it.
+    const second = await openViaApi(secrets, documentBody());
+    const panelHost = await openFramed(context, STUB_B, second.body.editorUrl);
+    await typeOnly(panelHost.page, ' 40404', panelHost.editor);
+    const panelMessages = await waitForSent(panelHost, 0);
+    await panelHost.page.close();
+
+    // An unregistered parent. frame-ancestors keeps it out (S3), so the header is removed here to
+    // prove the second line alone: the message's target origin. A fulfilled page counts as public to
+    // Chrome, which would then refuse it loopback addresses, so this browser has that check off.
+    const third = await openViaApi(secrets, documentBody());
+    const unchecked = await chromium.launch({ channel: 'chrome', headless: true, args: ['--disable-features=LocalNetworkAccessChecks'] });
+    const lifted = await unchecked.newContext();
+    await lifted.route(`${API}/editor/*`, async (route) => {
+      const response = await route.fetch();
+      const { 'content-security-policy': _csp, ...headers } = response.headers();
+      await route.fulfill({ response, headers });
+    });
+    const stranger = await openFramed(lifted, STUB_C, third.body.editorUrl);
+    await typeOnly(stranger.page, ' 50505', stranger.editor);
+    await sleep(8000);
+    const strangerMessages = await stranger.messages();
+    const strangerLoaded = stranger.page.frames().some((f) => f.name() === 'frameEditor');
+    await unchecked.close();
+
+    const ok = untouched.status === 200 && untouched.body.result === 'no_changes'
+      && whileEditing.status === 200 && ['ok', 'no_changes'].includes(whileEditing.body.result)
+      && refused.status === 403 && refused.body.error === 'not_your_key'
+      && unknown.status === 404 && unknown.body.error === 'key_not_found'
+      && save.status === 200 && save.body.result === 'ok' && Boolean(saved) && kept && saved.signatureValid
+      && exact && both && sent1.length > 0 && sent2.length > count && framed.cspViolations.length === 0
+      && panelMessages.length > 0 && panelMessages.every((m) => m.origin === API)
+      && strangerLoaded && strangerMessages.length === 0;
+    return {
+      result: ok ? 'pass' : 'fail',
+      evidence: [
+        `no edits: ${untouched.status} ${JSON.stringify(untouched.body)}; another consumer: ${refused.status} ${JSON.stringify(refused.body)}; a key never opened: ${unknown.status} ${JSON.stringify(unknown.body)}`,
+        `straight after typing, the page reporting editing:${reported}: ${whileEditing.status} ${JSON.stringify(whileEditing.body)}`,
+        `after editing:false: ${save.status} ${JSON.stringify(save.body)}; status 6 reached the consumer ${Boolean(saved)}, signature valid ${saved?.signatureValid}, the saved file holds the edit ${kept}`,
+        `framed by the returnOrigin: ${messages.map((m) => m.data.editing).join(', ')}; exact shape from the service's origin ${exact}; CSP violations ${framed.cspViolations.length}`,
+        `framed by the panel origin: ${panelMessages.length} message(s)`,
+        `framed by an unregistered origin with frame-ancestors lifted: editor loaded ${strangerLoaded}, ${strangerMessages.length} message(s)`,
+      ],
+    };
+  },
+};
+
+/** The entries the File menu shows in the session `opened` names. */
+async function fileMenu(context, opened) {
+  const { page } = await openServicePage(context, opened.body.editorUrl);
+  const frame = page.frames().find((f) => f.name() === 'frameEditor');
+  await frame.locator('.ribtab a[data-tab="file"]').first().click();
+  await sleep(1500);
+  const shown = await frame.evaluate(() => ['fm-btn-download', 'fm-btn-print'].filter((id) => document.getElementById(id)?.offsetParent));
+  await page.close();
+  return shown;
+}
+
+const s5 = {
+  id: 'S5',
+  order: 11.7,
+  title: 'Download and print follow the permissions a profile open sets',
+  parent: 'DOC-23',
+  async run({ context, secrets }) {
+    const byDefault = await fileMenu(context, await openViaApi(secrets, documentBody()));
+    const limited = await fileMenu(context, await openViaApi(secrets, documentBody({ permissions: { download: false, print: false } })));
+    const printOnly = await fileMenu(context, await openViaApi(secrets, documentBody({ permissions: { download: false } })));
+    const ok = byDefault.length === 2 && limited.length === 0 && printOnly.join() === 'fm-btn-print';
+    return {
+      result: ok ? 'pass' : 'fail',
+      evidence: [`File menu by default: ${byDefault.join(', ')}; download and print off: ${limited.join(', ') || 'neither'}; download off: ${printOnly.join(', ')}`],
+    };
+  },
+};
+
+export default [s1, s2, e2a, e2b, e2c, e2d, e2e, s3, s4, s5];

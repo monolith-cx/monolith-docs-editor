@@ -79,13 +79,14 @@ export function buildEditorConfig(session: SessionPayload, ctx: EditorConfigCont
     url: ctx.documentUrl,
   };
   const user = { id: session.u.id, name: session.u.name };
+  const perm = session.perm ?? { download: true, print: true };
 
   if (session.p === 'document' || session.p === 'template') {
     const panelOrigin = session.pu ? new URL(session.pu).origin : undefined;
     return {
       document: {
         ...base,
-        permissions: { edit: true, modifyContentControl: false, protect: false, download: true, print: true, review: true, comment: true },
+        permissions: { edit: true, modifyContentControl: false, protect: false, download: perm.download, print: perm.print, review: true, comment: true },
       },
       documentType: documentType(session.n),
       editorConfig: {
@@ -106,7 +107,6 @@ export function buildEditorConfig(session: SessionPayload, ctx: EditorConfigCont
   }
 
   if (session.p === 'view' || session.p === 'legacy-view') {
-    const perm = session.perm ?? { download: true, print: true };
     return {
       document: { ...base, permissions: { edit: false, download: perm.download, print: perm.print } },
       documentType: documentType(session.n),
@@ -131,7 +131,6 @@ export function buildEditorConfig(session: SessionPayload, ctx: EditorConfigCont
   }
 
   // legacy-edit: the pre-profile editing configuration, unchanged (E1).
-  const perm = session.perm ?? { download: true, print: true };
   return {
     document: { ...base, permissions: { edit: true, download: perm.download, print: perm.print } },
     documentType: documentType(session.n),
