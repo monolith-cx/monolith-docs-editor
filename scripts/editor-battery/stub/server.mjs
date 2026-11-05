@@ -316,7 +316,9 @@ async function originA(req, res) {
 }
 
 async function originB(req, res) {
-  const p = new URL(req.url, 'http://stub').pathname;
+  const url = new URL(req.url, 'http://stub');
+  const p = url.pathname;
+  if (req.method === 'GET' && p === '/frame') return framePage(url, res);
   if (req.method === 'GET' && p.startsWith('/panel/')) {
     return serveFile(res, path.join(STUB_DIR, 'panel'), p.slice('/panel/'.length));
   }

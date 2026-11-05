@@ -9,6 +9,7 @@
  *   POST   /api/documents/callback                DocumentServer: verified, then notified to the consumer
  *   POST   /api/documents/convert                 consumer: a document in its storage to a PDF in its storage (EDIT-3)
  *   POST   /api/documents/keys/:key/drop          consumer: drop a key's users (the closing sequence)
+ *   POST   /api/documents/keys/:key/forcesave     consumer: save a key's current edits now, editing continues (DOC-23)
  *   GET    /api/documents/keys/:key/forgotten     consumer: a final save DocumentServer kept (ADR F1)
  *   DELETE /api/documents/keys/:key/forgotten     consumer: release it after storing it
  *
@@ -29,7 +30,7 @@ import { CONVERT_FILE_TYPES, ConvertError, convertToPdf } from '../convert.js';
 import { buildEditorConfig } from '../editor-config.js';
 import { renderEditorPage, renderExpiredPage } from '../editor-page.js';
 import { hostOf, keyRef } from '../log-safety.js';
-import { consumerFrameAncestors } from '../origins.js';
+import { consumerFrameAncestors, frameOrigins } from '../origins.js';
 import { STATUS_EVENTS, buildNotification, deliver } from '../notify.js';
 import { recordSource, sourceActive, sourceSignal } from '../source-outcomes.js';
 import { partsStream, readCapped } from '../capped-read.js';
@@ -48,8 +49,9 @@ interface OpenBody {
   revision?: string;
   mode?: 'e' | 'v';
   panelUrl?: string;
-  // Legacy shape (E1)
+  // Both shapes; `edit` is the legacy shape's only (a profile decides editing)
   permissions?: { edit?: boolean; download?: boolean; print?: boolean };
+  // Legacy shape (E1)
   callbackUrl?: string;
   saveTo?: unknown;
 }
@@ -209,7 +211,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     if (body.profile) {
       // Profile shape (EDIT-2.3).
       if (!consumer.profiles?.includes(body.profile)) return refuse(reply, 403, 'profile_not_allowed');
-      if (body.callbackUrl !== undefined || body.saveTo !== undefined || body.permissions !== undefined) {
+      if (body.callbackUrl !== undefined || body.saveTo !== undefined || body.permissions?.edit !== undefined) {
         return refuse(reply, 400, 'field_not_allowed');
       }
       if (!body.documentRef || !body.revision || !body.mode) return refuse(reply, 400, 'key_fields_required');
@@ -236,7 +238,16 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       } else if (body.panelUrl !== undefined) {
         return refuse(reply, 400, 'field_not_allowed');
       }
-      payload = { p: body.profile, c: consumer.id, k: built.key, u: body.user, f: body.fileUrl, n: fileName, ...(panelUrl ? { pu: panelUrl } : {}) };
+      payload = {
+        p: body.profile,
+        c: consumer.id,
+        k: built.key,
+        u: body.user,
+        f: body.fileUrl,
+        n: fileName,
+        ...(panelUrl ? { pu: panelUrl } : {}),
+        ...(body.permissions ? { perm: { download: body.permissions.download ?? true, print: body.permissions.print ?? true } } : {}),
+      };
     } else {
       // Legacy shape (E1): kept until fastmail-connect and the Connect extension migrate. A
       // profile-capable consumer must use profiles, so its keys always get the profile rules
@@ -308,12 +319,14 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
     const editorConfig = buildEditorConfig(session, { callbackUrl, bridgePluginConfigUrl, documentUrl });
     const token = jwt.sign(editorConfig, config.onlyofficeJwtSecret, { algorithm: 'HS256' });
+    const consumer = findConsumerById(session.c);
     const page = renderEditorPage({
       dsPublicUrl: config.onlyofficePublicUrl,
       title: opened.payload.n,
       config: editorConfig,
       token,
-      frameAncestors: consumerFrameAncestors(findConsumerById(session.c)),
+      frameAncestors: consumerFrameAncestors(consumer),
+      hostOrigins: consumer ? frameOrigins(consumer) : [],
     });
     reply.header('Content-Security-Policy', page.csp);
     return reply.type('text/html').send(page.html);
@@ -527,6 +540,22 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       const result = COMMAND_ERRORS[res.error] ?? 'unknown';
       req.log.info({ keyRef: keyRef(key), result }, 'Drop requested');
       return res.error === 0 ? reply.send({ result }) : reply.status(commandStatus(res.error)).send({ error: result });
+    } catch {
+      return refuse(reply, 502, 'docserver_unreachable');
+    }
+  });
+
+  app.post<{ Params: { key: string } }>('/api/documents/keys/:key/forcesave', { schema: keyParams }, async (req, reply) => {
+    const key = ownKey(req, reply);
+    if (!key) return reply;
+    try {
+      const res = await command(config.onlyofficeUrl, config.onlyofficeJwtSecret, { c: 'forcesave', key });
+      const result = COMMAND_ERRORS[res.error] ?? 'unknown';
+      req.log.info({ keyRef: keyRef(key), result }, 'Force-save requested');
+      // Nothing to save is a normal answer here, unlike drop's. The key is the whole request, so apart
+      // from an unknown key every other refusal is a fault, not something the consumer can correct.
+      if (res.error === 0 || res.error === 4) return reply.send({ result });
+      return reply.status(res.error === 1 ? 404 : 502).send({ error: result });
     } catch {
       return refuse(reply, 502, 'docserver_unreachable');
     }

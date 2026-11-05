@@ -5,6 +5,12 @@
  * admits only DocumentServer's origin for scripts and frames, and only the session's own consumer
  * as a framing ancestor (`frame-ancestors`, EDIT-2.9; built by `consumerFrameAncestors`). The page
  * holds nothing beyond what DocumentServer receives (the signed config, including the panel token, D14).
+ *
+ * A framed page tells its parent when edits are pending (DOC-23): `editing` is true while the user
+ * has edits not yet sent to DocumentServer, and false once they are sent, which is not saved to the
+ * consumer. The message goes to each of the consumer's registered origins by exact `targetOrigin`,
+ * never `*`: the browser delivers it only if the parent is that origin, so an unregistered parent
+ * gets nothing. `frame-ancestors` admits several origins, and the page cannot tell which one framed it.
  */
 import { randomBytes } from 'node:crypto';
 
@@ -57,7 +63,7 @@ function originOf(url: string): string | null {
   }
 }
 
-export function renderEditorPage(opts: { dsPublicUrl: string; title: string; config: unknown; token: string; frameAncestors: string }): RenderedPage {
+export function renderEditorPage(opts: { dsPublicUrl: string; title: string; config: unknown; token: string; frameAncestors: string; hostOrigins: string[] }): RenderedPage {
   const nonce = randomBytes(16).toString('base64');
   const dsOrigin = originOf(opts.dsPublicUrl);
   const apiJs = `${opts.dsPublicUrl.replace(/\/$/, '')}/web-apps/apps/api/documents/api.js`;
@@ -78,6 +84,17 @@ export function renderEditorPage(opts: { dsPublicUrl: string; title: string; con
   <script nonce="${nonce}">
     var editorConfig = ${scriptSafeJson(opts.config)};
     editorConfig.token = ${scriptSafeJson(opts.token)};
+    var hostOrigins = ${scriptSafeJson(opts.hostOrigins)};
+    if (window.parent !== window && hostOrigins.length > 0) {
+      editorConfig.events = {
+        onDocumentStateChange: function (event) {
+          var message = { type: "monolith-editor", event: "state", editing: event.data === true };
+          hostOrigins.forEach(function (origin) {
+            window.parent.postMessage(message, origin);
+          });
+        },
+      };
+    }
     new DocsAPI.DocEditor("editor", editorConfig);
   </script>
 </body>

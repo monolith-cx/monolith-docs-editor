@@ -55,6 +55,10 @@ Answer: `{ "editorUrl": "https://editor…/editor/<sealed token>", "key": "crm.c
 Open `editorUrl` in an iframe or a tab. Nothing else is needed on the page. An iframe works only from
 one of your registered origins (`panelOrigins` or `returnOrigin`; section 3, Framing).
 
+Optional `permissions` (`download`, `print`, booleans, each `true` when left out) set what this
+session's editor offers, in any profile. You decide them per user, so send them on every `open` for
+that user, `view` sessions included. `edit` is refused here: the profile decides editing.
+
 ### Profiles
 
 | Profile | Mode | What the editor allows |
@@ -112,8 +116,8 @@ or an `Expires` epoch parameter).
 `400` with `error`: `key_fields_required`, `profile_mode_mismatch`, `bad_key:<reason>`,
 `file_url_refused:<code>` (`invalid`, `scheme`, `credentials`, `host_not_allowed`, `local_name`,
 `private_address`, `unresolvable`), `file_url_expired`, `panel_url_required`,
-`panel_url_invalid`, `panel_origin_not_registered`, `field_not_allowed` (a legacy field on the
-profile shape), `profile_required` (the legacy shape from a profile consumer, section 8),
+`panel_url_invalid`, `panel_origin_not_registered`, `field_not_allowed` (a legacy field or
+`permissions.edit` on the profile shape), `profile_required` (the legacy shape from a profile consumer, section 8),
 `session_too_large`. `403 profile_not_allowed`. `401` with `Missing Authorization header` or
 `Invalid or expired credentials`. `500 seal_unavailable` (the service has no usable seal key).
 
@@ -133,6 +137,21 @@ registered neither gets `frame-ancestors 'none'`: its editor opens only top-leve
 browser checks every ancestor, so an iframe inside a page inside your app needs each of those
 origins registered. The expired page follows the same rule for the consumer an expired token names,
 and `'none'` for a tampered or unknown token.
+
+**Editing state (DOC-23):** an editor page framed by your app reports to its parent with
+`postMessage`, sent only to your registered origins:
+
+```json
+{ "type": "monolith-editor", "event": "state", "editing": true }
+```
+
+`editing` is `true` while the user has edits not yet sent to DocumentServer and `false` once they
+are sent. **`false` does not mean saved**: your stored copy changes only on a status 2 or 6
+notification (section 4). Check `event.origin` before trusting a message, and treat it as display
+state only. A page that is not framed sends nothing. A frame chain gets no message unless the
+editor's direct parent is one of your registered origins. If you registered more than one origin,
+the page posts to each and the browser delivers only to the parent's, so Chrome logs a target-origin
+mismatch in the console for the others; it is harmless.
 
 - An expired token from a known consumer shows a page that links to `returnOrigin`.
 - A tampered or unknown token shows the same page with no link and no detail.
@@ -231,6 +250,24 @@ attempt. So:
   Reconcile any key whose closing sequence did not end in a stored save.
 - Respond within the timeout; store asynchronously if you must, but only answer `2xx` once the
   save is durably queued.
+
+### Saving on request
+
+`POST /api/documents/keys/:key/forcesave`, with no body or `{}`, authenticated as the key's own
+consumer, asks DocumentServer to save the key's current edits now. Editing continues. Answers:
+
+| Answer | Meaning |
+|---|---|
+| `{ "result": "ok" }` | The save was requested, not stored. It arrives as a status 6 notification. |
+| `{ "result": "no_changes" }` | DocumentServer holds nothing new to save. A normal answer, not a failure. |
+| `404 key_not_found` | DocumentServer has no open session for the key. |
+| `403 not_your_key` | Another consumer's key. |
+| `502` with `docserver_internal`, `invalid_token`, `callback_url_not_correct`, `command_not_correct`, `unknown`, or `docserver_unreachable` | A fault in DocumentServer or the service, not in your request. |
+
+Treat a save as stored only when you have accepted its notification: a status 6 gets one delivery
+attempt (see above). `no_changes` covers only what has reached DocumentServer, so edits the browser
+has not sent yet are not in it: while the page reports `editing: true`, wait for `false`, then ask.
+Refuse this on a key that is closing or closed.
 
 ### Edit locks
 
@@ -393,6 +430,11 @@ falls back to the URL's. Refused: `callbackUrl`, `saveTo`, a GCS `bucket/object`
 shape is removed once no registered consumer uses it.
 
 ## 9. Changelog
+
+**DOC-23 (2026-11-04).** Added: `POST /api/documents/keys/:key/forcesave` (section 4, Saving on
+request); the editing state message to a framing parent (section 3); optional `permissions`
+(`download`, `print`) on a profile `open` (section 2). Nothing changes for a consumer that uses none
+of them.
 
 **EDIT close-out (2026-11-02).** The `hostname` binding is listed in section 1 (it existed; the table omitted it). The contract draft `document-editing.md` is at 0.4.0-draft and matches this guide.
 

@@ -35,7 +35,7 @@ export interface SessionPayload {
   n: string;
   /** Panel URL (document/template), with the panel token in its fragment. */
   pu?: string;
-  /** Legacy permissions. */
+  /** Download and print, from the legacy shape or a profile `open` (DOC-23); absent means both allowed. */
   perm?: { download: boolean; print: boolean };
   /** Expiry, epoch milliseconds. */
   exp: number;

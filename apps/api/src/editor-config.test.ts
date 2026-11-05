@@ -26,6 +26,15 @@ describe('buildEditorConfig per profile (D13)', () => {
     });
   }
 
+  it('document and template take download and print from the session, defaulting to true (DOC-23)', () => {
+    for (const profile of ['document', 'template'] as const) {
+      const defaults = buildEditorConfig(session(profile, { pu: 'https://crm.example.com/panel' }), ctx);
+      expect(defaults.document.permissions).toEqual({ edit: true, modifyContentControl: false, protect: false, download: true, print: true, review: true, comment: true });
+      const limited = buildEditorConfig(session(profile, { pu: 'https://crm.example.com/panel', perm: { download: false, print: false } }), ctx);
+      expect(limited.document.permissions).toEqual({ edit: true, modifyContentControl: false, protect: false, download: false, print: false, review: true, comment: true });
+    }
+  });
+
   it('view: read-only viewer, no plugins', () => {
     const cfg = buildEditorConfig(session('view', { k: 'crm.d1.v1' }), ctx);
     expect(cfg.document.permissions).toMatchObject({ edit: false });

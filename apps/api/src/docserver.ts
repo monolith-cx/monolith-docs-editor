@@ -1,5 +1,5 @@
 /**
- * DocumentServer's command service (drop, forgotten files), called on its internal URL with
+ * DocumentServer's command service (drop, force-save, forgotten files), called on its internal URL with
  * the JWT in both documented inbox forms (header with `payload`, and a body `token`), as the
  * EDIT-1 battery does. Error codes are mapped to names; nothing here logs a URL.
  */
