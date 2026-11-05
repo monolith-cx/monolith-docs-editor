@@ -179,8 +179,9 @@ const SERVICE_EDITOR = 'http://127.0.0.1:18204/editor/';
 function framePage(url, res) {
   const src = url.searchParams.get('src') ?? '';
   if (!src.startsWith(SERVICE_EDITOR) || !/^[A-Za-z0-9_-]+$/.test(src.slice(SERVICE_EDITOR.length))) return send(res, 400, { error: 'src must be a service editor URL' });
+  const attribute = src.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-  return res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>frame</title><style>html,body,iframe{margin:0;border:0;width:100%;height:100%}</style></head><body><iframe id="framed" src="${src}"></iframe></body></html>`);
+  return res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>frame</title><style>html,body,iframe{margin:0;border:0;width:100%;height:100%}</style></head><body><iframe id="framed" src="${attribute}"></iframe></body></html>`);
 }
 
 async function originA(req, res) {

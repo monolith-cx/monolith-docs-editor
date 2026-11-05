@@ -3,11 +3,11 @@
     "release": "10.0.0.1",
     "date": "2026-11-05",
     "image": "onlyoffice/documentserver:10.0.0.1@sha256:ca17889f10b11141cc6441836aebdd2835cf3e1b49681b2fd6e155c94b7850b3",
-    "started": "2026-11-05T02:41:11.920Z",
-    "finished": "2026-11-05T02:42:15.391Z",
+    "started": "2026-11-05T03:25:39.082Z",
+    "finished": "2026-11-05T03:29:58.834Z",
     "host": "altus-labs-dev",
-    "only": "S5,S1,S3,S4",
-    "dsSettleSeconds": null,
+    "only": "S1,S3,S4,S5",
+    "dsSettleSeconds": 169,
     "totals": {
       "pass": 4
     }
@@ -19,7 +19,7 @@
       "parent": "EDIT-1.3 / EDIT-2.8",
       "result": "pass",
       "evidence": [
-        "open 200, key battery.bat_mw2xvgdm_1.e1; editor drew the document under the page's CSP (violations: none)",
+        "open 200, key battery.bat_mw2zki0o_1.e1; editor drew the document under the page's CSP (violations: none)",
         "the consumer's file was fetched 1 time(s), every time by the service (source route, pinned), never by DocumentServer: true (fetchers: api)",
         "consumer notifications: editing[1], saved[0]; every signature valid true",
         "final save: deliveryId present and equal to its header true; download URL origin http://127.0.0.1:18200; the saved file holds the edit true"
@@ -45,13 +45,13 @@
       "result": "pass",
       "evidence": [
         "no edits: 200 {\"result\":\"no_changes\"}; another consumer: 403 {\"error\":\"not_your_key\"}; a key never opened: 404 {\"error\":\"key_not_found\"}",
-        "straight after typing, while the page reported editing: 200 {\"result\":\"no_changes\"}",
+        "straight after typing, the page reporting editing:true: 200 {\"result\":\"no_changes\"}",
         "after editing:false: 200 {\"result\":\"ok\"}; status 6 reached the consumer true, signature valid true, the saved file holds the edit true",
         "framed by the returnOrigin: true, false, true, false; exact shape from the service's origin true; CSP violations 0",
         "framed by the panel origin: 2 message(s)",
         "framed by an unregistered origin with frame-ancestors lifted: editor loaded true, 0 message(s)"
       ],
-      "seconds": 29
+      "seconds": 30
     },
     {
       "id": "S5",

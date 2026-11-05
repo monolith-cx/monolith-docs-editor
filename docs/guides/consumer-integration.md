@@ -253,8 +253,10 @@ attempt. So:
 
 ### Saving on request
 
-`POST /api/documents/keys/:key/forcesave`, with no body or `{}`, authenticated as the key's own
-consumer, asks DocumentServer to save the key's current edits now. Editing continues. Answers:
+`POST /api/documents/keys/:key/forcesave`, authenticated as the key's own consumer, asks
+DocumentServer to save the key's current edits now. Editing continues. It takes nothing but the key:
+send no body, or `{}` if your client sets a JSON content type (an empty JSON body is a `400`). Any
+other body is ignored. Answers:
 
 | Answer | Meaning |
 |---|---|

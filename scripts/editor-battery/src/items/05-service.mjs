@@ -463,8 +463,10 @@ const s4 = {
     const refused = await forcesave(key, secrets.legacyKey);
     const unknown = await forcesave(`battery.never_opened_${Date.now().toString(36)}.e1`, secrets.apiKey);
 
-    // While the browser still holds the edit: recorded, because a Save button has to deal with it.
+    // While the browser may still hold the edit. Which answer comes depends on when the editor's
+    // batch lands, so a normal answer is required and the one given is recorded: a Save button has to deal with it.
     await typeOnly(framed.page, ' 20202 pending', framed.editor);
+    const reported = (await framed.messages()).at(-1)?.data.editing;
     const whileEditing = await forcesave(key, secrets.apiKey);
     const sent1 = await waitForSent(framed, 0);
     await sleep(2000);
@@ -508,6 +510,7 @@ const s4 = {
     await unchecked.close();
 
     const ok = untouched.status === 200 && untouched.body.result === 'no_changes'
+      && whileEditing.status === 200 && ['ok', 'no_changes'].includes(whileEditing.body.result)
       && refused.status === 403 && refused.body.error === 'not_your_key'
       && unknown.status === 404 && unknown.body.error === 'key_not_found'
       && save.status === 200 && save.body.result === 'ok' && Boolean(saved) && kept && saved.signatureValid
@@ -518,7 +521,7 @@ const s4 = {
       result: ok ? 'pass' : 'fail',
       evidence: [
         `no edits: ${untouched.status} ${JSON.stringify(untouched.body)}; another consumer: ${refused.status} ${JSON.stringify(refused.body)}; a key never opened: ${unknown.status} ${JSON.stringify(unknown.body)}`,
-        `straight after typing, while the page reported editing: ${whileEditing.status} ${JSON.stringify(whileEditing.body)}`,
+        `straight after typing, the page reporting editing:${reported}: ${whileEditing.status} ${JSON.stringify(whileEditing.body)}`,
         `after editing:false: ${save.status} ${JSON.stringify(save.body)}; status 6 reached the consumer ${Boolean(saved)}, signature valid ${saved?.signatureValid}, the saved file holds the edit ${kept}`,
         `framed by the returnOrigin: ${messages.map((m) => m.data.editing).join(', ')}; exact shape from the service's origin ${exact}; CSP violations ${framed.cspViolations.length}`,
         `framed by the panel origin: ${panelMessages.length} message(s)`,
