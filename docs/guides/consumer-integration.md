@@ -1,8 +1,9 @@
 # Consumer integration guide
 
 How an app (a *consumer*) opens documents in the Monolith editor service, receives saves, and
-closes sessions. This is the service side of the ecosystem contract `document-editing.md`
-(UDOC-2.1, drafted in Platform under `docs/ecosystem/contracts-draft/`). Written at EDIT-2
+closes sessions. This is the service side of the ecosystem contract `document-editing` 1.0.0,
+published in the private Monolith hub repository (`contracts/document-editing.md`; drafted in
+Platform as UDOC-2.1, where the old path now points to the hub). Written at EDIT-2
 (2026-10-18) against OnlyOffice DocumentServer 10.0.0.1; the measured behaviour it relies on is in
 `docs/adr/2026-10-17-onlyoffice-release-and-licence.md` (findings F1–F18).
 
@@ -432,6 +433,9 @@ falls back to the URL's. Refused: `callbackUrl`, `saveTo`, a GCS `bucket/object`
 shape is removed once no registered consumer uses it.
 
 ## 9. Changelog
+
+**PLAT-10 (2026-11-07).** The contract `document-editing` is 1.0.0 and lives in the Monolith hub;
+no shape or rule changed from 0.7.0-draft, and no service behaviour changed.
 
 **DOC-23 (2026-11-04).** Added: `POST /api/documents/keys/:key/forcesave` (section 4, Saving on
 request); the editing state message to a framing parent (section 3); optional `permissions`
