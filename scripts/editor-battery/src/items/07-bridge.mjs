@@ -14,9 +14,12 @@ export function bridgeBody(over = {}) {
   return documentBody({ panelUrl: `${PANEL}#pluginOrigin=${PLUGIN_ORIGIN}&token=battery-panel-token`, ...over });
 }
 
+/** The plugin page: per consumer since DOC-22 (`/plugins/udoc-bridge/c/<id>/`), unscoped before it. */
+const PLUGIN_PAGE = /\/plugins\/udoc-bridge\/(?:c\/[0-9A-Za-z_-]+\/)?index\.html/;
+
 /** The plugin's and the panel's frames inside a service editor page. */
 export function bridgeFrames(page) {
-  const plugin = page.frames().find((f) => f.url().includes('/plugins/udoc-bridge/index.html'));
+  const plugin = page.frames().find((f) => PLUGIN_PAGE.test(f.url()));
   const panel = page.frames().find((f) => f.url().startsWith(PANEL));
   return { plugin, panel };
 }
