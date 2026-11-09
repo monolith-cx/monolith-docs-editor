@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { validateConsumersConfig, findConsumersByHostname, notificationSecretProblems, notificationSecrets, resetConsumers, setConsumersForTest } from './consumers.js';
+import { DEFAULT_PANEL_NAME, panelNameOf, validateConsumersConfig, findConsumersByHostname, notificationSecretProblems, notificationSecrets, resetConsumers, setConsumersForTest } from './consumers.js';
 import type { Consumer } from './consumers.js';
 
 describe('validateConsumersConfig', () => {
@@ -160,6 +160,27 @@ describe('profile-capable consumers (E5)', () => {
     expect(validateConsumersConfig([profileConsumer({ profiles: ['admin' as never] })], true).join(' ')).toContain('profiles');
     expect(validateConsumersConfig([profileConsumer({ id: 'crm.prod' })], true).join(' ')).toContain('[0-9A-Za-z_-]');
     expect(validateConsumersConfig([profileConsumer({ notificationSecretRef: 'CRM_SECRET' })], true).join(' ')).toContain('notificationSecretRef');
+  });
+
+  it('accepts a panelName of 1 to 40 characters and refuses anything else (DOC-22)', () => {
+    // Counted in code points: forty astral characters fit.
+    for (const ok of ['CRM Data', 'D', 'x'.repeat(40), 'Données CRM', '📄'.repeat(40)]) {
+      expect(validateConsumersConfig([profileConsumer({ panelName: ok })], true), ok).toEqual([]);
+    }
+    for (const bad of ['', 'x'.repeat(41), '📄'.repeat(41), ' CRM Data', 'CRM Data ', 'CRM\nData', 'CRM\u0000', 42 as never]) {
+      expect(validateConsumersConfig([profileConsumer({ panelName: bad })], true).join(' '), String(bad)).toContain('panelName');
+    }
+  });
+
+  it('refuses a panelName on a legacy-only consumer, which has no panel (DOC-22)', () => {
+    const legacy: Consumer = { id: 'fastmail-connect', name: 'Connect for Fastmail', auth: { mode: 'hmac', secret: 's'.repeat(32), issuer: 'connect-billing-api' }, panelName: 'Panel' };
+    expect(validateConsumersConfig([legacy], true).join(' ')).toContain('panelName needs profiles');
+  });
+
+  it('names the panel from the registration, else the default (DOC-22)', () => {
+    expect(panelNameOf(profileConsumer({ panelName: 'CRM Data' }))).toBe('CRM Data');
+    expect(panelNameOf(profileConsumer())).toBe(DEFAULT_PANEL_NAME);
+    expect(DEFAULT_PANEL_NAME).toBe('Document panel');
   });
 
   it('keeps a legacy-only consumer valid (E1)', () => {

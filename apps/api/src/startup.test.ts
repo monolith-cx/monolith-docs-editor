@@ -58,18 +58,24 @@ describe('startupProblems under EDITOR_ENV=production', () => {
 describe('the bridge plugin files (EDIT-5)', () => {
   it('refuses to start when a served plugin file is missing', async () => {
     const { startup } = await load({ CONSUMERS: JSON.stringify([crm()]), EDITOR_NOTIFY_SECRET_STARTUP_CRM: 's'.repeat(40), EDITOR_PLUGIN_DIR: '/nonexistent-plugin-dir' });
-    expect(startup.startupProblems().join(' ')).toContain('the bridge plugin is missing config.json, index.html, bridge.js, commands.js, icon.png');
+    expect(startup.startupProblems().join(' ')).toContain('the bridge plugin is missing config.json, index.html, bridge.js, commands.js, icon.png, icon@2x.png, icon-dark.png, icon-dark@2x.png');
   });
 
   it('refuses a plugin file that is a directory or cannot be read', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'plugin-files-'));
     try {
-      for (const name of ['index.html', 'bridge.js', 'commands.js', 'icon.png']) writeFileSync(path.join(dir, name), 'x');
+      for (const name of ['index.html', 'bridge.js', 'commands.js', 'icon.png', 'icon@2x.png', 'icon-dark.png', 'icon-dark@2x.png']) writeFileSync(path.join(dir, name), 'x');
       mkdirSync(path.join(dir, 'config.json'));
       const { startup } = await load({ CONSUMERS: JSON.stringify([crm()]), EDITOR_NOTIFY_SECRET_STARTUP_CRM: 's'.repeat(40), EDITOR_PLUGIN_DIR: dir });
       expect(startup.startupProblems().join(' ')).toContain('the bridge plugin is missing config.json in');
       rmSync(path.join(dir, 'config.json'), { recursive: true });
+      // DOC-22: the manifest is re-served per consumer, so it must parse to an object.
+      for (const bad of ['{"name":', '[]', 'null']) {
+        writeFileSync(path.join(dir, 'config.json'), bad);
+        expect(startup.startupProblems().join(' '), bad).toContain("the bridge plugin's config.json in EDITOR_PLUGIN_DIR");
+      }
       writeFileSync(path.join(dir, 'config.json'), '{}');
+      expect(startup.startupProblems().join(' ')).not.toContain('bridge plugin');
       chmodSync(path.join(dir, 'bridge.js'), 0o000);
       // Root reads anything; the check is meaningful only for an ordinary user.
       if (process.getuid?.() !== 0) expect(startup.startupProblems().join(' ')).toContain('the bridge plugin is missing bridge.js in');

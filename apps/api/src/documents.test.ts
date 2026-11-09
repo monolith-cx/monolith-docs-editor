@@ -353,6 +353,24 @@ describe('GET /editor/:token (EDIT-2.3, 2.6)', () => {
     expect(signed.editorConfig.plugins.disable).toEqual([PLUGIN_MANAGER_GUID]);
   });
 
+  it("points the editor at the consumer's own plugin manifest and hands the plugin its panel name (DOC-22)", async () => {
+    const signedPlugins = async () => {
+      const { app, res } = await open(documentOpen());
+      const page = await app.inject({ method: 'GET', url: new URL(res.json<{ editorUrl: string }>().editorUrl).pathname });
+      const token = JSON.parse(/editorConfig\.token = (".*?");/.exec(page.body)?.[1] ?? '""') as string;
+      const signed = jwt.verify(token, config.onlyofficeJwtSecret) as { editorConfig: { plugins: { pluginsData: string[]; options: Record<string, { panelName: string }> } } };
+      return signed.editorConfig.plugins;
+    };
+    setConsumersForTest([{ ...crm(), panelName: 'CRM Data' }, fastmail]);
+    const named = await signedPlugins();
+    expect(named.pluginsData).toEqual([`${config.apiPublicUrl}/plugins/udoc-bridge/c/crm/config.json`]);
+    expect(named.options[BRIDGE_PLUGIN_GUID]?.panelName).toBe('CRM Data');
+    setConsumersForTest([crm(), fastmail]);
+    const unnamed = await signedPlugins();
+    expect(unnamed.pluginsData).toEqual([`${config.apiPublicUrl}/plugins/udoc-bridge/c/crm/config.json`]);
+    expect(unnamed.options[BRIDGE_PLUGIN_GUID]?.panelName).toBe('Document panel');
+  });
+
   it('shows the expired page: with a link for an expired token, without one for a tampered token', async () => {
     const app = buildApp();
     const expired = sealSession({ p: 'document', c: 'crm', k: 'crm.d.e1', u: { id: 'u', name: 'U' }, f: FILE, n: 'a.docx', exp: Date.now() - 1 }, config.sealKeys);

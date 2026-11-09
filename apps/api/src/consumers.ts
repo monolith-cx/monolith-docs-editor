@@ -58,11 +58,34 @@ export interface Consumer {
   convertUploadHosts?: string[];
   /** The origin the expired page links back to. */
   returnOrigin?: string;
+  /** The panel's name in the editor (the Plugins tab entry and the panel's title, DOC-22); `DEFAULT_PANEL_NAME` when absent. */
+  panelName?: string;
 }
 
 /** Consumer ids are the first component of every document key: `[0-9A-Za-z_-]` only (D13). */
 export const KEY_COMPONENT = /^[0-9A-Za-z_-]+$/;
 export const PROFILES: readonly Profile[] = ['document', 'template', 'view'];
+
+/** The panel's name for a registration without `panelName` (document-editing 1.1.0, section 2). */
+export const DEFAULT_PANEL_NAME = 'Document panel';
+export const PANEL_NAME_MAX = 40;
+
+/** 1 to 40 characters (code points), no control characters, no leading or trailing space. */
+export function isPanelName(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const length = [...value].length;
+  return length > 0 && length <= PANEL_NAME_MAX && value.trim() === value && !/\p{Cc}/u.test(value);
+}
+
+/** A consumer on the profile surface, the only kind that opens the panel (E5). */
+export function opensPanel(consumer: Consumer): boolean {
+  return Array.isArray(consumer.profiles) && consumer.profiles.length > 0;
+}
+
+/** The name the editor shows for this consumer's panel. */
+export function panelNameOf(consumer: Consumer): string {
+  return consumer.panelName ?? DEFAULT_PANEL_NAME;
+}
 
 let consumers: Consumer[] | undefined;
 
@@ -106,7 +129,12 @@ export function validateConsumersConfig(consumerList: Consumer[], strict: boolea
       if (c.callbackUrl !== undefined || c.notificationSecretRef !== undefined) {
         errors.push(`Consumer ${c.id}: callbackUrl and notificationSecretRef need profiles (a legacy-only consumer receives no notifications)`);
       }
+      // Nor does it open the panel.
+      if (c.panelName !== undefined) errors.push(`Consumer ${c.id}: panelName needs profiles (a legacy-only consumer has no panel)`);
       continue;
+    }
+    if (c.panelName !== undefined && !isPanelName(c.panelName)) {
+      errors.push(`Consumer ${c.id}: panelName must be 1 to ${PANEL_NAME_MAX} characters, without control characters or surrounding spaces`);
     }
     // A profile-capable consumer must carry its whole registration (E5).
     if (!Array.isArray(c.profiles) || c.profiles.length === 0 || c.profiles.some((p) => !PROFILES.includes(p))) {

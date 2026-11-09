@@ -25,7 +25,7 @@ import { OPERATIONS, PROTOCOL_VERSION, scopeFor } from './commands.js';
 /**
  * What the bridge needs from its page; the tests pass fakes.
  * @typedef {{
- *   createFrame(src: string, onLoad: () => void): { window: () => PanelWindow | null },
+ *   createFrame(src: string, onLoad: () => void, title: string): { window: () => PanelWindow | null },
  *   listen(handler: (event: { source: unknown, origin: string, data: unknown }) => void): void,
  *   status(text: string | null): void,
  *   plugin: AscPlugin,
@@ -154,7 +154,7 @@ export function createBridge(host) {
    * @param {unknown} options
    */
   function start(options) {
-    const o = /** @type {{ panelUrl?: unknown, panelOrigin?: unknown } | null} */ (options && typeof options === 'object' ? options : null);
+    const o = /** @type {{ panelUrl?: unknown, panelOrigin?: unknown, panelName?: unknown } | null} */ (options && typeof options === 'object' ? options : null);
     if (!o || typeof o.panelUrl !== 'string' || typeof o.panelOrigin !== 'string') {
       host.status('No panel for this session.');
       return;
@@ -171,7 +171,9 @@ export function createBridge(host) {
     }
     state.origin = o.panelOrigin;
     host.listen(onMessage);
-    state.frame = host.createFrame(url.href, ready);
+    // The consumer's panel name (DOC-22) titles the frame for assistive technology.
+    const title = typeof o.panelName === 'string' && o.panelName ? o.panelName : 'Document panel';
+    state.frame = host.createFrame(url.href, ready, title);
     host.status(null);
   }
 
@@ -182,9 +184,9 @@ export function createBridge(host) {
 if (typeof window !== 'undefined' && window.Asc) {
   const asc = window.Asc;
   const bridge = createBridge({
-    createFrame(src, onLoad) {
+    createFrame(src, onLoad, title) {
       const frame = document.createElement('iframe');
-      frame.title = 'Document panel';
+      frame.title = title;
       frame.src = src;
       frame.addEventListener('load', onLoad);
       const host = document.getElementById('panel');
@@ -210,7 +212,7 @@ if (typeof window !== 'undefined' && window.Asc) {
     bridge.start((asc.plugin.info || {}).options);
   };
   // The panel's close button arrives as button(-1): the plugin must close itself (OnlyOffice's
-  // contract, ADR F18). The Plugins tab's "Document panel" button opens it again with the same data.
+  // contract, ADR F18). The Plugins tab's button, named by the consumer's manifest (DOC-22), opens it again with the same data.
   asc.plugin.button = function (id) {
     if (id === -1) asc.plugin.executeCommand('close', '');
   };
