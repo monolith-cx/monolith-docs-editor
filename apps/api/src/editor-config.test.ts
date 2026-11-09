@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BRIDGE_PLUGIN_GUID, PLUGIN_MANAGER_GUID, buildEditorConfig } from './editor-config.js';
 import type { SessionPayload } from './session-token.js';
 
-const ctx = { callbackUrl: 'http://api:3020/api/documents/callback', bridgePluginConfigUrl: 'https://editor.example.com/plugins/udoc-bridge/config.json', documentUrl: 'http://api:3020/api/documents/source/tok' };
+const ctx = { callbackUrl: 'http://api:3020/api/documents/callback', bridgePluginConfigUrl: 'https://editor.example.com/plugins/udoc-bridge/c/crm/config.json', panelName: 'CRM Data', documentUrl: 'http://api:3020/api/documents/source/tok' };
 const session = (p: SessionPayload['p'], over: Partial<SessionPayload> = {}): SessionPayload => ({
   p, c: 'crm', k: 'crm.d1.e1', u: { id: 'u1', name: 'Rep' }, f: 'https://files.example.com/a.docx', n: 'Contract.docx', exp: 1, ...over,
 });
@@ -19,7 +19,7 @@ describe('buildEditorConfig per profile (D13)', () => {
       expect(cfg.editorConfig.plugins).toEqual({
         autostart: [BRIDGE_PLUGIN_GUID],
         pluginsData: [ctx.bridgePluginConfigUrl],
-        options: { [BRIDGE_PLUGIN_GUID]: { profile, panelUrl: 'https://crm.example.com/panel#token=abc', panelOrigin: 'https://crm.example.com' } },
+        options: { [BRIDGE_PLUGIN_GUID]: { profile, panelUrl: 'https://crm.example.com/panel#token=abc', panelOrigin: 'https://crm.example.com', panelName: 'CRM Data' } },
         disable: [PLUGIN_MANAGER_GUID],
       });
       expect(cfg.editorConfig.callbackUrl).toBe(ctx.callbackUrl);

@@ -20,8 +20,10 @@ export const PLUGIN_MANAGER_GUID = 'asc.{AA2EA9B6-9EC2-415F-9762-634EE8D9A95E}';
 export interface EditorConfigContext {
   /** Where DocumentServer posts its callbacks (the service, on its internal URL). */
   callbackUrl: string;
-  /** The bridge plugin's config.json, served by the service (EDIT-5). */
+  /** The bridge plugin's config.json for this session's consumer, served by the service (EDIT-5, DOC-22). */
   bridgePluginConfigUrl: string;
+  /** The consumer's panel name (`panelNameOf`), handed to the plugin for its frame's title (DOC-22). */
+  panelName: string;
   /**
    * The URL DocumentServer fetches the document from: the service's own source route for a
    * consumer's file (so the service fetches it on a pinned address), or the legacy internal
@@ -99,7 +101,7 @@ export function buildEditorConfig(session: SessionPayload, ctx: EditorConfigCont
           autostart: [BRIDGE_PLUGIN_GUID],
           pluginsData: [ctx.bridgePluginConfigUrl],
           // Per-session plugin data reaches the plugin as Asc.plugin.info.options (battery U2).
-          options: { [BRIDGE_PLUGIN_GUID]: { profile: session.p, panelUrl: session.pu ?? null, panelOrigin: panelOrigin ?? null } },
+          options: { [BRIDGE_PLUGIN_GUID]: { profile: session.p, panelUrl: session.pu ?? null, panelOrigin: panelOrigin ?? null, panelName: ctx.panelName } },
           disable: [PLUGIN_MANAGER_GUID],
         },
       },

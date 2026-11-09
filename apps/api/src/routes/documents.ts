@@ -22,12 +22,13 @@ import jwt from 'jsonwebtoken';
 import { checkCallback } from '../callback-auth.js';
 import { config } from '../config.js';
 import type { Consumer, Profile } from '../consumers.js';
-import { findConsumerById, getConsumers, notificationSecrets } from '../consumers.js';
+import { DEFAULT_PANEL_NAME, findConsumerById, getConsumers, notificationSecrets, panelNameOf } from '../consumers.js';
 import { buildKey, parseKey } from '../document-key.js';
 import { COMMAND_ERRORS, command, onBase } from '../docserver.js';
 import type { ConvertFileType } from '../convert.js';
 import { CONVERT_FILE_TYPES, ConvertError, convertToPdf } from '../convert.js';
 import { buildEditorConfig } from '../editor-config.js';
+import { pluginConfigUrl } from './plugin.js';
 import { renderEditorPage, renderExpiredPage } from '../editor-page.js';
 import { hostOf, keyRef } from '../log-safety.js';
 import { consumerFrameAncestors, frameOrigins } from '../origins.js';
@@ -194,7 +195,6 @@ function inferFileName(fileUrl: string): string {
 
 export async function documentRoutes(app: FastifyInstance): Promise<void> {
   const callbackUrl = `${config.apiInternalUrl}/api/documents/callback`;
-  const bridgePluginConfigUrl = `${config.apiPublicUrl}/plugins/udoc-bridge/config.json`;
   const legacyFilesPrefix = `${config.apiInternalUrl}/api/files/`;
   const sourcePrefix = `${config.apiInternalUrl}/api/documents/source/`;
 
@@ -317,9 +317,15 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(500).type('text/plain').send('Editor unavailable');
       }
     }
-    const editorConfig = buildEditorConfig(session, { callbackUrl, bridgePluginConfigUrl, documentUrl });
-    const token = jwt.sign(editorConfig, config.onlyofficeJwtSecret, { algorithm: 'HS256' });
     const consumer = findConsumerById(session.c);
+    const editorConfig = buildEditorConfig(session, {
+      callbackUrl,
+      // Per consumer, so the panel carries its registration's name (DOC-22).
+      bridgePluginConfigUrl: pluginConfigUrl(config.apiPublicUrl, session.c),
+      panelName: consumer ? panelNameOf(consumer) : DEFAULT_PANEL_NAME,
+      documentUrl,
+    });
+    const token = jwt.sign(editorConfig, config.onlyofficeJwtSecret, { algorithm: 'HS256' });
     const page = renderEditorPage({
       dsPublicUrl: config.onlyofficePublicUrl,
       title: opened.payload.n,

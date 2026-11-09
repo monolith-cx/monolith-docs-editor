@@ -13,6 +13,7 @@ function harness({ answer, timeoutMs = 200 } = {}) {
   const calls = [];
   const statuses = [];
   let onLoad = null;
+  const titles = [];
   const plugin = {
     callCommand: (fn, close, calc, cb) => {
       calls.push(fn.name);
@@ -24,8 +25,9 @@ function harness({ answer, timeoutMs = 200 } = {}) {
   };
   const scopes = [];
   const bridge = createBridge({
-    createFrame: (src, load) => {
+    createFrame: (src, load, title) => {
       onLoad = load;
+      titles.push(title);
       return { window: () => panelWindow, src };
     },
     listen: (h) => (handler = h),
@@ -37,7 +39,7 @@ function harness({ answer, timeoutMs = 200 } = {}) {
   const send = (data, { source = panelWindow, origin = PANEL } = {}) => handler({ source, origin, data });
   const responses = () => posted.filter((p) => p.message.type === 'udoc.response').map((p) => p.message);
   const flush = () => new Promise((r) => setTimeout(r, 20));
-  return { bridge, posted, send, responses, flush, calls, scopes, statuses, load: () => onLoad && onLoad(), panelWindow, plugin };
+  return { bridge, posted, send, responses, flush, calls, scopes, statuses, titles, load: () => onLoad && onLoad(), panelWindow, plugin };
 }
 
 describe('createBridge', () => {
@@ -48,6 +50,16 @@ describe('createBridge', () => {
     const h2 = harness();
     h2.bridge.start(undefined);
     expect(h2.statuses).toEqual(['No panel for this session.']);
+  });
+
+  it("titles the panel frame with the consumer's panel name, or the default without one (DOC-22)", () => {
+    const h = harness();
+    h.bridge.start({ panelUrl: `${PANEL}/panel`, panelOrigin: PANEL, panelName: 'CRM Data' });
+    const h2 = harness();
+    h2.bridge.start({ panelUrl: `${PANEL}/panel`, panelOrigin: PANEL });
+    const h3 = harness();
+    h3.bridge.start({ panelUrl: `${PANEL}/panel`, panelOrigin: PANEL, panelName: 42 });
+    expect([...h.titles, ...h2.titles, ...h3.titles]).toEqual(['CRM Data', 'Document panel', 'Document panel']);
   });
 
   it('sends udoc.ready to the exact panel origin on load and on hello', () => {

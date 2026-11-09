@@ -4,22 +4,38 @@
  *
  *   GET /plugins/udoc-bridge/config.json   the plugin's manifest (CORS for DocumentServer's origin)
  *   GET /plugins/udoc-bridge/index.html    rendered: DocumentServer's plugin API from this environment, a nonce
- *   GET /plugins/udoc-bridge/bridge.js, commands.js, icon.png
+ *   GET /plugins/udoc-bridge/bridge.js, commands.js, and the icons (icon.png, icon@2x.png, icon-dark.png, icon-dark@2x.png)
+ *   GET /plugins/udoc-bridge/c/<consumer>/<file>   the same files for one consumer: its manifest carries
+ *       the consumer's `panelName` (DOC-22, document-editing 1.1.0); the editor config points here
+ *
+ * The manifest is per consumer because OnlyOffice takes the panel's name from it and nowhere else.
+ * The unscoped path stays, under the default name, for editor pages opened before DOC-22.
  *
  * Exactly these files, read once; framed only within DocumentServer, the service's own editor page,
  * and registered consumers' origins; the page may frame only the registered consumers' panel origins. No consumer auth (DocumentServer's editor fetches
  * them) and no per-address rate limit (every editor in an office shares an address).
  */
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { randomBytes } from 'node:crypto';
-import { accessSync, constants, statSync } from 'node:fs';
+import { accessSync, constants, readFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
-import { getConsumers } from '../consumers.js';
+import { DEFAULT_PANEL_NAME, getConsumers, opensPanel, panelNameOf } from '../consumers.js';
 import { frameOrigins, isOrigin } from '../origins.js';
 
 export const PLUGIN_PREFIX = '/plugins/udoc-bridge/';
+
+/** The manifest URL a consumer's editor config names (DOC-22). The id is a key component, safe in a path. */
+export function pluginConfigUrl(apiPublicUrl: string, consumerId: string): string {
+  return `${apiPublicUrl}${PLUGIN_PREFIX}c/${encodeURIComponent(consumerId)}/config.json`;
+}
+
+/** The manifest with this panel name: parsed and re-serialised, so the name is never spliced into JSON text. `pluginProblems` refuses the boot unless it parses to an object. */
+function manifestNamed(manifest: Buffer, name: string): Buffer {
+  const parsed = JSON.parse(manifest.toString('utf8')) as Record<string, unknown>;
+  return Buffer.from(JSON.stringify({ ...parsed, name }, null, 2));
+}
 
 /** The stylesheet DocumentServer 10.0.0.1's plugins.js injects into a plugin page. */
 const PLUGINS_JS_STYLE_HASH = 'sha256-+hyDP+n2vEbTIcp6afJ/mXciplsnk96LITgc0vUcp/M=';
@@ -30,6 +46,9 @@ const FILES: Record<string, string> = {
   'bridge.js': 'text/javascript; charset=utf-8',
   'commands.js': 'text/javascript; charset=utf-8',
   'icon.png': 'image/png',
+  'icon@2x.png': 'image/png',
+  'icon-dark.png': 'image/png',
+  'icon-dark@2x.png': 'image/png',
 };
 
 /** A regular file this process can read (a directory or an unreadable file serves nothing). */
@@ -43,10 +62,22 @@ function readableFile(file: string): boolean {
   }
 }
 
+/** The manifest is re-served per consumer (DOC-22), so it must be a JSON object. */
+function manifestIsObject(file: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
 /** The panel cannot load without every served file; the service refuses to start (EDIT-5 review). */
 export function pluginProblems(): string[] {
   const missing = Object.keys(FILES).filter((name) => !readableFile(path.join(config.pluginDir, name)));
-  return missing.length ? [`the bridge plugin is missing ${missing.join(', ')} in EDITOR_PLUGIN_DIR (${config.pluginDir}), or they are not readable files`] : [];
+  if (missing.length) return [`the bridge plugin is missing ${missing.join(', ')} in EDITOR_PLUGIN_DIR (${config.pluginDir}), or they are not readable files`];
+  const manifest = path.join(config.pluginDir, 'config.json');
+  return manifestIsObject(manifest) ? [] : [`the bridge plugin's config.json in EDITOR_PLUGIN_DIR (${config.pluginDir}) is not a JSON object`];
 }
 
 function originOf(url: string): string | null {
@@ -70,11 +101,21 @@ export async function pluginRoutes(app: FastifyInstance): Promise<void> {
     return ["'self'", ds, ...new Set(consumers)].join(' ');
   };
 
-  app.get<{ Params: { file: string } }>(`${PLUGIN_PREFIX}:file`, async (req, reply) => {
-    const name = req.params.file;
+  // Parsed at boot, so a malformed manifest stops the boot rather than the first editor.
+  const defaultManifest = manifestNamed(files.get('config.json') ?? Buffer.from('{}'), DEFAULT_PANEL_NAME);
+
+  const serve = async (name: string, consumerId: string | undefined, reply: FastifyReply) => {
     const type = Object.prototype.hasOwnProperty.call(FILES, name) ? FILES[name] : undefined;
-    const body = type ? files.get(name) : undefined;
+    let body = type ? files.get(name) : undefined;
     if (!type || !body) return reply.status(404).send({ error: 'not_found' });
+    // Only a consumer that opens the panel has a plugin path; any other id is unknown here.
+    const consumer = consumerId === undefined ? undefined : getConsumers().find((c) => c.id === consumerId && opensPanel(c));
+    if (consumerId !== undefined && !consumer) return reply.status(404).send({ error: 'not_found' });
+    if (consumer) {
+      if (name === 'config.json') body = manifestNamed(body, panelNameOf(consumer));
+    } else if (name === 'config.json') {
+      body = defaultManifest;
+    }
     reply.header('Cache-Control', name === 'index.html' ? 'no-store' : 'no-cache');
     if (name === 'config.json') reply.header('Access-Control-Allow-Origin', ds);
     if (name !== 'index.html') {
@@ -82,7 +123,8 @@ export async function pluginRoutes(app: FastifyInstance): Promise<void> {
       return reply.type(type).send(body);
     }
     const nonce = randomBytes(16).toString('base64');
-    const panels = [...new Set(getConsumers().flatMap((c) => c.panelOrigins ?? []).filter(isOrigin))];
+    // A consumer's page frames only that consumer's panels; the unscoped page, every registered one.
+    const panels = [...new Set((consumer ? [consumer] : getConsumers()).flatMap((c) => c.panelOrigins ?? []).filter(isOrigin))];
     reply.header(
       'Content-Security-Policy',
       [
@@ -107,5 +149,10 @@ export async function pluginRoutes(app: FastifyInstance): Promise<void> {
     reply.header('Referrer-Policy', 'no-referrer');
     const html = body.toString('utf8').split('{{DS}}').join(ds).split('{{NONCE}}').join(nonce);
     return reply.type(type).send(html);
-  });
+  };
+
+  app.get<{ Params: { file: string } }>(`${PLUGIN_PREFIX}:file`, (req, reply) => serve(req.params.file, undefined, reply));
+  app.get<{ Params: { consumer: string; file: string } }>(`${PLUGIN_PREFIX}c/:consumer/:file`, (req, reply) =>
+    serve(req.params.file, req.params.consumer, reply),
+  );
 }

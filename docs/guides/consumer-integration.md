@@ -1,7 +1,7 @@
 # Consumer integration guide
 
 How an app (a *consumer*) opens documents in the Monolith editor service, receives saves, and
-closes sessions. This is the service side of the ecosystem contract `document-editing` 1.0.0,
+closes sessions. This is the service side of the ecosystem contract `document-editing` 1.1.0,
 published in the private Monolith hub repository (`contracts/document-editing.md`; drafted in
 Platform as UDOC-2.1, where the old path now points to the hub). Written at EDIT-2
 (2026-10-18) against OnlyOffice DocumentServer 10.0.0.1; the measured behaviour it relies on is in
@@ -28,6 +28,7 @@ surface carries every field below; the service refuses to start otherwise.
 | `fileHosts` | Hosts an `open` `fileUrl` may name. |
 | `convertSourceHosts`, `convertUploadHosts` | Hosts a conversion may read from and upload to (EDIT-3). |
 | `returnOrigin` | Where the expired page links back to. Also a framing origin (below). |
+| `panelName` | Optional. The panel's name in the editor: its Plugins tab entry and its title (section 7). 1 to 40 characters, no control characters, no leading or trailing space. Default **Document panel**. Only with `profiles`. CRM registers `CRM Data`. |
 
 Secrets are created per environment in 1Password and Secret Manager and recorded by name in
 `CREDENTIALS.md`. The consumer holds the same notification secret. Outside `local` the service
@@ -335,14 +336,20 @@ requires none (UDOC D16).
 
 ## 7. The panel (EDIT-5)
 
-The `document` and `template` profiles open a right-side panel, **Document panel**, hosted by the
-bridge plugin. The plugin loads your `panelUrl` in an iframe and answers that page's requests with
+The `document` and `template` profiles open a right-side panel, named by your registration's
+`panelName` (**Document panel** without one), hosted by the bridge plugin. The plugin loads your `panelUrl` in an iframe and answers that page's requests with
 a fixed set of operations on the open document. Your proprietary UI lives in your page; the plugin
 is a thin AGPL bridge served from the service's own origin (`API_PUBLIC_URL`, the **plugin origin**).
 
 The user can close the panel (its × button) and reopen it from the **Plugins** tab, which offers
-the Document panel and nothing else; reloading the editor page brings it back with the same
+your panel and nothing else; reloading the editor page brings it back with the same
 `panelUrl`. Each time, your page is loaded fresh and receives `udoc.ready` again.
+
+OnlyOffice reads the panel's name from the plugin's manifest and nowhere else, so the service
+serves the plugin per consumer: your editor config names `/plugins/udoc-bridge/c/<your id>/config.json`,
+whose `name` is your `panelName`, and the plugin's other files under the same path. That path's page
+frames only your `panelOrigins`. The unscoped `/plugins/udoc-bridge/` path stays, under the default
+name, for editor pages opened before it (DOC-22).
 
 ### Your panel page
 
@@ -433,6 +440,12 @@ falls back to the URL's. Refused: `callbackUrl`, `saveTo`, a GCS `bucket/object`
 shape is removed once no registered consumer uses it.
 
 ## 9. Changelog
+
+**DOC-22 (2026-11-09).** Added: the optional `panelName` registration field (section 1) names the
+panel; the service serves the bridge plugin per consumer under `/plugins/udoc-bridge/c/<id>/`, and
+the editor config names that path (section 7). The plugin has light and dark icons at 1x and 2x.
+Nothing changes for a consumer without `panelName` except that its panel's page frames only its own
+`panelOrigins`. The contract `document-editing` is 1.1.0.
 
 **PLAT-10 (2026-11-07).** The contract `document-editing` is 1.0.0 and lives in the Monolith hub;
 no shape or rule changed from 0.7.0-draft, and no service behaviour changed.

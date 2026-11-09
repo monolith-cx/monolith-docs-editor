@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { BRIDGE_PLUGIN_GUID } from './editor-config.js';
 import { resetConsumers, setConsumersForTest } from './consumers.js';
+import { pluginConfigUrl } from './routes/plugin.js';
 
 const DS = 'http://ds-public.test';
 
@@ -42,7 +43,7 @@ describe('GET /plugins/udoc-bridge/* (EDIT-5.1)', () => {
 
   it('serves the bridge scripts and nothing else from the folder', async () => {
     const app = buildApp();
-    for (const file of ['bridge.js', 'commands.js', 'icon.png']) {
+    for (const file of ['bridge.js', 'commands.js', 'icon.png', 'icon@2x.png', 'icon-dark.png', 'icon-dark@2x.png']) {
       expect((await app.inject({ method: 'GET', url: `/plugins/udoc-bridge/${file}` })).statusCode).toBe(200);
     }
     for (const url of ['/plugins/udoc-bridge/package.json', '/plugins/udoc-bridge/commands.test.mjs', '/plugins/udoc-bridge/..%2f..%2fpackage.json', '/plugins/udoc-bridge/%2e%2e/config.json']) {
@@ -87,5 +88,68 @@ describe('GET /plugins/udoc-bridge/* (EDIT-5.1)', () => {
     const codes = new Set<number>();
     for (let i = 0; i < 120; i += 1) codes.add((await app.inject({ method: 'GET', url: '/plugins/udoc-bridge/bridge.js' })).statusCode);
     expect([...codes]).toEqual([200]);
+  });
+});
+
+describe('GET /plugins/udoc-bridge/c/<consumer>/* (DOC-22)', () => {
+  const crm = { id: 'crm', name: 'CRM', auth: { mode: 'api-key' as const, key: 'k' }, profiles: ['document' as const], panelOrigins: ['https://crm.example.com'], panelName: 'CRM Data' };
+  const docs = { id: 'docs', name: 'Docs', auth: { mode: 'api-key' as const, key: 'k2' }, profiles: ['template' as const], panelOrigins: ['https://docs.example.com'] };
+  const legacy = { id: 'fastmail', name: 'Legacy', auth: { mode: 'api-key' as const, key: 'k3' } };
+
+  it("names the panel from the consumer's registration, the default without one, and keeps the rest of the manifest", async () => {
+    setConsumersForTest([crm, docs, legacy]);
+    try {
+      const app = buildApp();
+      const shared = (await app.inject({ method: 'GET', url: '/plugins/udoc-bridge/config.json' })).json<Record<string, unknown>>();
+      const named = await app.inject({ method: 'GET', url: '/plugins/udoc-bridge/c/crm/config.json' });
+      expect(named.statusCode).toBe(200);
+      expect(named.headers['access-control-allow-origin']).toBe(DS);
+      expect(named.json()).toEqual({ ...shared, name: 'CRM Data' });
+      expect(shared.name).toBe('Document panel');
+      expect((await app.inject({ method: 'GET', url: '/plugins/udoc-bridge/c/docs/config.json' })).json()).toMatchObject({ name: 'Document panel', guid: BRIDGE_PLUGIN_GUID });
+    } finally {
+      resetConsumers();
+    }
+  });
+
+  it("serves the plugin's other files under the consumer's path, and its page frames only that consumer's panels", async () => {
+    setConsumersForTest([crm, docs]);
+    try {
+      const app = buildApp();
+      for (const file of ['bridge.js', 'commands.js', 'icon.png', 'icon@2x.png', 'icon-dark.png', 'icon-dark@2x.png']) {
+        expect((await app.inject({ method: 'GET', url: `/plugins/udoc-bridge/c/crm/${file}` })).statusCode).toBe(200);
+      }
+      const page = await app.inject({ method: 'GET', url: '/plugins/udoc-bridge/c/crm/index.html' });
+      expect(page.statusCode).toBe(200);
+      const csp = String(page.headers['content-security-policy']);
+      expect(csp).toContain('frame-src https://crm.example.com;');
+      expect(csp).not.toContain('frame-src https://crm.example.com https://docs.example.com');
+      expect(csp).toContain(`frame-ancestors 'self' ${DS} https://crm.example.com https://docs.example.com`);
+    } finally {
+      resetConsumers();
+    }
+  });
+
+  it('answers 404 for an unknown consumer, a legacy-only consumer, and a file outside the plugin', async () => {
+    setConsumersForTest([crm, legacy, { ...docs, id: 'empty', profiles: [] }]);
+    try {
+      const app = buildApp();
+      for (const url of [
+        '/plugins/udoc-bridge/c/nobody/config.json',
+        '/plugins/udoc-bridge/c/fastmail/config.json',
+        '/plugins/udoc-bridge/c/empty/config.json',
+        '/plugins/udoc-bridge/c/crm/package.json',
+        '/plugins/udoc-bridge/c/crm/__proto__',
+        '/plugins/udoc-bridge/c/crm/%2e%2e/config.json',
+      ]) {
+        expect((await app.inject({ method: 'GET', url })).statusCode, url).toBe(404);
+      }
+    } finally {
+      resetConsumers();
+    }
+  });
+
+  it('builds the manifest URL the editor config names', () => {
+    expect(pluginConfigUrl('https://editor.example.com', 'crm')).toBe('https://editor.example.com/plugins/udoc-bridge/c/crm/config.json');
   });
 });

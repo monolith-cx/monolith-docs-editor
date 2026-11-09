@@ -6,7 +6,11 @@
     {
       "description": "Monolith document panel bridge (UDOC D14): hosts the consumer's panel page",
       "url": "index.html",
-      "icons": ["icon.png", "icon.png"],
+      "icons": ["icon.png", "icon@2x.png"],
+      "icons2": [
+        { "style": "light", "100%": { "normal": "icon.png" }, "200%": { "normal": "icon@2x.png" } },
+        { "style": "dark", "100%": { "normal": "icon-dark.png" }, "200%": { "normal": "icon-dark@2x.png" } }
+      ],
       "isViewer": false,
       "EditorsSupport": ["word"],
       "isVisual": true,
