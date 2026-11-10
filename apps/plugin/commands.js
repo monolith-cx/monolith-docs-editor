@@ -84,14 +84,39 @@ export function getText() {
   return { body: body, headers: headers, footers: footers, blocks: blocks };
 }
 
-/** Inserts a field control at the cursor: inline `field:<rowId>` (contentLocked) or block `block:<rowId>` (sdtContentLocked), D11. */
+/**
+ * Inserts a field control at the cursor: inline `field:<rowId>` (contentLocked) or block `block:<rowId>` (sdtContentLocked), D11.
+ *
+ * The value takes the text formatting at the cursor (DOC-35): the lock stops anyone formatting it
+ * afterwards. The source is the current run's own properties (`GetCurrentRun().GetTextPr()`), which on
+ * 10.0.0.1 hold only what is set directly on that run, a pending Ctrl+U or Ctrl+B at a bare cursor
+ * included, so a cursor in unformatted text adds no `w:rPr` at all. `GetRangeBySelect().GetTextPr()`
+ * also answers at a bare cursor, but with every computed property (fonts, size, language), which would
+ * all be written. Formatting is best effort: if the editor cannot read or apply it, the field is still
+ * inserted, unformatted, as before.
+ */
 export function insertField() {
   var a = Asc.scope;
   var doc = Api.GetDocument();
+  /** @type {ApiTextPr | null} */
+  var textPr = null;
+  try {
+    var cursor = typeof doc.GetCurrentRun === 'function' ? doc.GetCurrentRun() : null;
+    textPr = cursor ? cursor.GetTextPr() : null;
+  } catch (_e) {
+    textPr = null;
+  }
   /** @param {ApiContentControl | ApiParagraph} target */
   function addValue(target) {
     var lines = String(a.value).split('\n');
     var run = Api.CreateRun();
+    if (textPr) {
+      try {
+        run.SetTextPr(textPr);
+      } catch (_e) {
+        // Unformatted, as before DOC-35.
+      }
+    }
     for (var i = 0; i < lines.length; i++) {
       if (i > 0) run.AddLineBreak();
       run.AddText(lines[i]);

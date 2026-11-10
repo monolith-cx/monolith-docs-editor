@@ -87,10 +87,10 @@ async function closeAndSave(page, key) {
   const t = Date.now();
   await page.close();
   const saved = await waitForEvent((e) => e.kind === 'consumer-callback' && e.key === key && (e.status === 2 || e.status === 4) && e.t >= t, 90_000);
-  if (!saved || saved.status !== 2 || !saved.saved?.file) return { saved, xml: '', comments: '' };
+  if (!saved || saved.status !== 2 || !saved.saved?.file) return { saved, xml: '', comments: '', zip: null };
   const { zip, documentXml } = await openDocx(await stub(`/saved/${saved.saved.file}`));
   const comments = zip.file('word/comments.xml') ? await zip.file('word/comments.xml').async('string') : '';
-  return { saved, xml: documentXml, comments };
+  return { saved, xml: documentXml, comments, zip };
 }
 
 const e5b = {
@@ -448,4 +448,150 @@ const e5f = {
   },
 };
 
-export default [e5a, e5b, e5c, e5d, e5e, e5f];
+/** The `<w:sdtContent>` of the control tagged `tag` in a story's XML, or ''. */
+function sdtContentOf(xml, tag) {
+  const at = xml.indexOf(`w:val="${tag}"`);
+  if (at < 0) return '';
+  const start = xml.indexOf('<w:sdtContent>', at);
+  const end = xml.indexOf('</w:sdtContent>', start);
+  return start >= 0 && end > start ? xml.slice(start, end) : '';
+}
+
+const HEADER_FIXTURE = 'field-in-header-and-footer.docx';
+
+const e5g = {
+  id: 'E5g',
+  order: 19.5,
+  title: 'insertField takes the text formatting at the cursor, inline and block, and adds none where there is none (DOC-35)',
+  parent: 'DOC-35 / EDIT-5.3',
+  timeoutMs: 400_000,
+  async fixtures(work) {
+    await copyFile(path.join(CORPUS_DIR, HEADER_FIXTURE), path.join(work, 'fixtures', HEADER_FIXTURE));
+  },
+  async run({ context, secrets }) {
+    await resetStub();
+    const evidence = [];
+    const { page, key } = await openBridge(context, secrets);
+    const box = await page.locator('iframe[name="frameEditor"]').boundingBox();
+    if (!box) throw new Error('the editor frame has no box');
+    const focus = async () => page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.5);
+    /** A new paragraph at the end of the document, with `keys` pressed at its bare cursor. */
+    const freshLine = async (label, keys) => {
+      await focus();
+      await page.keyboard.press('Control+End');
+      await page.keyboard.press('Enter');
+      if (label) await page.keyboard.type(label);
+      for (const k of keys) await page.keyboard.press(k);
+      await sleep(300);
+    };
+    const insert = (rowId, value, kind = 'inline') => request(page, 'insertField', { rowId, label: rowId, value, kind });
+    // Untouched fixture text: the start of the first paragraph, a run with no properties of its own.
+    await focus();
+    await page.keyboard.press('Control+Home');
+    const plain = await insert('p35', 'PLAIN35');
+    // Inside an existing field's value (r2 ends the first paragraph: bold, colour 1F4E79). Recorded,
+    // not asserted: the insert nests a field inside r2 and splits its value, with or without DOC-35
+    // (the lock does not stop a plugin; ERRORS.md, 2026-11-10).
+    await page.keyboard.press('End');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
+    await sleep(300);
+    const inside = await insert('c35', 'INSIDE35');
+    await freshLine('Underlined: ', ['Control+u']);
+    const under = await insert('u35', 'UNDERLINED35');
+    await freshLine('Bold: ', ['Control+b']);
+    const bold = await insert('b35', 'BOLD35');
+    await freshLine('Block: ', ['Control+u', 'Control+b']);
+    const block = await insert('k35', 'BLOCK35', 'block');
+    // An active selection: underlined text, selected with the keyboard, then the field.
+    await freshLine('', ['Control+u']);
+    await page.keyboard.type('SELECTME');
+    await page.keyboard.press('Shift+Home');
+    await sleep(300);
+    const selected = (await request(page, 'getSelection')).result?.text;
+    const overSelection = await insert('s35', 'SELECTED35');
+    // Track changes on through the editor's own call behind the Review toggle (the document profile
+    // shows no Review tab), underline at a bare cursor, then tracking off again.
+    const editorFrame = page.frame({ name: 'frameEditor' });
+    const setTracking = (on) => editorFrame.evaluate((v) => (window.editor.asc_SetTrackRevisions(v), window.editor.asc_IsTrackRevisions()), on);
+    const trackingOn = await setTracking(true);
+    await freshLine('Tracked: ', ['Control+u']);
+    const tracked = await insert('t35', 'TRACKED35');
+    const trackingOff = await setTracking(false);
+    const { saved, xml } = await closeAndSave(page, key);
+    const ctl = xml ? controls(xml) : [];
+    const find = (tag) => ctl.find((c) => c.tag === tag);
+    const has = (c, prop) => Boolean(c) && c.rPr.split(',').some((p) => p === prop || p.startsWith(`${prop}=`));
+    const describe = (name, c) => (c ? `${name} ${c.lock} "${c.text}" rPr [${c.rPr}]` : `${name} missing`);
+    const p = find('field:p35');
+    const u = find('field:u35');
+    const b = find('field:b35');
+    const k = find('block:k35');
+    const s = find('field:s35');
+    const t = find('field:t35');
+    const c = find('field:c35');
+    const r2 = ctl.filter((x) => x.tag === 'field:r2');
+    const tContent = sdtContentOf(xml, 'field:t35');
+    const selectionReplaced = !xml.includes('SELECTME');
+    const bodyOk =
+      [plain, under, bold, block, overSelection, tracked].every((a) => a.ok) &&
+      saved?.status === 2 &&
+      p?.lock === 'contentLocked' && p.text === 'PLAIN35' && p.rPr === '' &&
+      u?.lock === 'contentLocked' && u.text === 'UNDERLINED35' && has(u, 'u') && !has(u, 'b') &&
+      b?.lock === 'contentLocked' && b.text === 'BOLD35' && has(b, 'b') &&
+      k?.lock === 'sdtContentLocked' && k.block && k.text.includes('BLOCK35') && has(k, 'u') && has(k, 'b') &&
+      selected === 'SELECTME' && selectionReplaced && s?.text === 'SELECTED35' && has(s, 'u') &&
+      trackingOn === true && trackingOff === false &&
+      t?.text === 'TRACKED35' && has(t, 'u') && tContent.includes('<w:ins') && !tContent.includes('rPrChange');
+    evidence.push(
+      `answers: plain ${plain.ok}, inside a field ${JSON.stringify(inside)}, underlined ${under.ok}, bold ${bold.ok}, block ${block.ok}, over a selection ${overSelection.ok}, tracked ${tracked.ok}`,
+      `final notification ${saved ? `status ${saved.status}` : 'none'}; saved value runs: ${describe('field:p35 (untouched text)', p)}; ${describe('field:u35 (Ctrl+U)', u)}; ${describe('field:b35 (Ctrl+B)', b)}; ${describe('block:k35 (Ctrl+U, Ctrl+B)', k)}`,
+      `selection ${JSON.stringify(selected)} (underlined): ${describe('field:s35', s)}; the selected text ${selectionReplaced ? 'was replaced' : 'stayed'}`,
+      `track changes on ${trackingOn}, off again ${trackingOff === false}: ${describe('field:t35', t)}, inside w:ins ${tContent.includes('<w:ins')}, no w:rPrChange ${!tContent.includes('rPrChange')}`,
+      `recorded, not asserted (pre-existing, ERRORS.md): cursor inside field:r2's value → ${describe('field:c35', c)}; field:r2 now ${r2.map((x) => `"${x.text}" [${x.rPr}]`).join(' and ')}`,
+    );
+
+    // A header story: the corpus file with a field in its header. The cursor goes there by a
+    // double-click on the header's first word, confirmed with getSelection before inserting.
+    await resetStub();
+    const { page: hp, key: hkey } = await openBridge(context, secrets, { fileUrl: `http://stub:18201/fixtures/${HEADER_FIXTURE}`, fileName: HEADER_FIXTURE });
+    const hbox = await hp.locator('iframe[name="frameEditor"]').boundingBox();
+    const canvas = await hp.frameLocator('iframe[name="frameEditor"]').locator('#id_main_view').boundingBox().catch(() => null);
+    let inHeader = '';
+    if (canvas) {
+      // The page is centred in the view at 100%; the header text sits half an inch below its top.
+      const pageLeft = canvas.x + canvas.width / 2 - 408;
+      for (let y = canvas.y + 20; y < canvas.y + 160 && !inHeader; y += 8) {
+        await hp.mouse.dblclick(pageLeft + 96 + 25, y);
+        await sleep(400);
+        const sel = (await request(hp, 'getSelection')).result?.text ?? '';
+        if (sel.trim() === 'Prepared') inHeader = sel;
+      }
+    }
+    let header = { ok: false, error: 'header not reached' };
+    if (inHeader) {
+      await hp.keyboard.press('Home');
+      await hp.keyboard.press('Control+u');
+      await sleep(300);
+      header = await request(hp, 'insertField', { rowId: 'h35', label: 'h35', value: 'HEADER35', kind: 'inline' });
+    }
+    const hText = header.ok ? await request(hp, 'getText') : null;
+    const inHeaderStory = Boolean(hText?.ok) && hText.result.headers.some((h) => h.paragraphs.some((q) => q.fields.some((f) => f.tag === 'field:h35')));
+    const hSaved = await closeAndSave(hp, hkey);
+    let headerXml = '';
+    if (hSaved.zip) {
+      for (const name of Object.keys(hSaved.zip.files).filter((n) => /^word\/header\d*\.xml$/.test(n))) {
+        const part = await hSaved.zip.file(name).async('string');
+        if (part.includes('field:h35')) headerXml = part;
+      }
+    }
+    const h = headerXml ? controls(headerXml).find((x) => x.tag === 'field:h35') : undefined;
+    const headerOk = header.ok && inHeaderStory && hSaved.saved?.status === 2 && h?.lock === 'contentLocked' && h.text === 'HEADER35' && has(h, 'u');
+    evidence.push(
+      `header: canvas ${canvas ? 'found' : 'not found'} (frame ${Math.round(hbox?.width ?? 0)}px), reached by double-click ${Boolean(inHeader)}; insert ${JSON.stringify(header)}; getText puts field:h35 in a header ${inHeaderStory}; saved header part: ${describe('field:h35 (Ctrl+U)', h)}`,
+    );
+    return { result: bodyOk && headerOk ? 'pass' : 'fail', evidence };
+  },
+};
+
+export default [e5a, e5b, e5c, e5d, e5e, e5f, e5g];

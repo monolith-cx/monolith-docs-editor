@@ -15,9 +15,16 @@ interface ApiElement {
   GetTag(): string;
 }
 
+/** A run's text properties; the bridge only carries them from one run to another (DOC-35). */
+interface ApiTextPr {
+  GetClassType(): string;
+}
+
 interface ApiRun {
   AddText(text: string): void;
   AddLineBreak(): void;
+  GetTextPr(): ApiTextPr;
+  SetTextPr(textPr: ApiTextPr): void;
 }
 
 interface ApiContentControl {
@@ -54,6 +61,8 @@ interface ApiDocument {
   IsTrackRevisions(): boolean;
   SetTrackRevisions(on: boolean): void;
   InsertContent(content: Array<ApiParagraph | ApiContentControl>, inline?: boolean): void;
+  /** The run at the cursor, or null; present on 10.0.0.1, checked before use (DOC-35). */
+  GetCurrentRun?(): ApiRun | null;
 }
 
 /** What a command reads from `Asc.scope` (built by the bridge from the operation's keys only). */

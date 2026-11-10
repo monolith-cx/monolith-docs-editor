@@ -9,7 +9,7 @@ import { OPERATIONS, addComment, applySuggestion, getText, insertField, insertTo
  * a tracked deletion keeps its text (what 10.0.0.1 does, E5b) and the insertion lands right after it;
  * `dropDeleted` models an editor whose deletion removes the text, so the insertion lands at the anchor.
  */
-function fakeDoc(paragraphs, { dropDeleted = false } = {}) {
+function fakeDoc(paragraphs, { dropDeleted = false, cursor } = {}) {
   const log = [];
   let track = false;
   const mkRange = (p, at, len) => ({
@@ -75,6 +75,21 @@ function fakeDoc(paragraphs, { dropDeleted = false } = {}) {
     },
     InsertContent: (content, inline) => log.push(['insert', content.length, Boolean(inline)]),
   };
+  // `cursor` models the run at the cursor (DOC-35): absent → an editor without GetCurrentRun; null →
+  // no current run; 'throws' → GetCurrentRun throws; 'textPrThrows' → the run's GetTextPr throws;
+  // otherwise the text properties GetTextPr returns.
+  if (cursor !== undefined) {
+    doc.GetCurrentRun = () => {
+      if (cursor === 'throws') throw new Error('no run here');
+      if (cursor === null) return null;
+      return {
+        GetTextPr: () => {
+          if (cursor === 'textPrThrows') throw new Error('no properties here');
+          return cursor;
+        },
+      };
+    };
+  }
   return { doc, log };
 }
 
@@ -86,7 +101,17 @@ beforeEach(() => {
   globalThis.Api = {
     GetDocument: () => current.doc,
     CreateRun: () => {
-      const r = { kind: 'run', parts: [], AddText: (t) => r.parts.push(t), AddLineBreak: () => r.parts.push('<br>') };
+      const r = {
+        kind: 'run',
+        parts: [],
+        textPr: [],
+        AddText: (t) => r.parts.push(t),
+        AddLineBreak: () => r.parts.push('<br>'),
+        SetTextPr: (pr) => {
+          if (pr.refuse) throw new Error('cannot apply');
+          r.textPr.push(pr);
+        },
+      };
       made.push(r);
       return r;
     },
@@ -246,6 +271,45 @@ describe('insertField and insertToken', () => {
     run(insertField, { rowId: 'b1', label: 'Line items', value: 'rows', kind: 'block' });
     expect(made.find((m) => m.kind === 'block')).toMatchObject({ tag: 'block:b1', lock: 'sdtContentLocked' });
     expect(current.log).toEqual([['insert', 1, false]]);
+  });
+
+  // DOC-35: the value run takes the text properties of the run at the cursor, inline and block alike.
+  const UNDERLINED = { GetClassType: () => 'textPr', u: true, b: true };
+
+  it('gives an inline field the text properties at the cursor, lock and tag unchanged', () => {
+    use([SENTENCE], { cursor: UNDERLINED });
+    expect(run(insertField, { rowId: 'r9', label: 'Start date', value: 'line one\nline two', kind: 'inline' })).toEqual({ ok: true, result: { tag: 'field:r9' } });
+    const cc = made.find((m) => m.kind === 'inline');
+    expect(cc).toMatchObject({ tag: 'field:r9', alias: 'Start date', lock: 'contentLocked' });
+    expect(cc.els[0].textPr).toEqual([UNDERLINED]);
+    expect(cc.els[0].parts).toEqual(['line one', '<br>', 'line two']);
+    expect(current.log).toEqual([['insert', 1, true]]);
+  });
+
+  it('gives a block field the text properties at the cursor, lock and tag unchanged', () => {
+    use([SENTENCE], { cursor: UNDERLINED });
+    expect(run(insertField, { rowId: 'b1', label: 'Line items', value: 'rows', kind: 'block' })).toEqual({ ok: true, result: { tag: 'block:b1' } });
+    expect(made.find((m) => m.kind === 'block')).toMatchObject({ tag: 'block:b1', lock: 'sdtContentLocked' });
+    expect(made.find((m) => m.kind === 'run').textPr).toEqual([UNDERLINED]);
+    expect(current.log).toEqual([['insert', 1, false]]);
+  });
+
+  it('inserts the field unformatted, as before, when there is no run at the cursor or the editor cannot say', () => {
+    for (const cursor of [undefined, null, 'throws', 'textPrThrows']) {
+      made = [];
+      use([SENTENCE], { cursor });
+      expect(run(insertField, { rowId: 'r9', label: 'Start date', value: 'x', kind: 'inline' })).toEqual({ ok: true, result: { tag: 'field:r9' } });
+      expect(made.find((m) => m.kind === 'run').textPr).toEqual([]);
+      expect(made.find((m) => m.kind === 'inline')).toMatchObject({ tag: 'field:r9', lock: 'contentLocked' });
+      expect(current.log).toEqual([['insert', 1, true]]);
+    }
+  });
+
+  it('still inserts the field when the editor refuses the text properties', () => {
+    use([SENTENCE], { cursor: { refuse: true } });
+    expect(run(insertField, { rowId: 'r9', label: 'Start date', value: 'x', kind: 'inline' })).toEqual({ ok: true, result: { tag: 'field:r9' } });
+    expect(made.find((m) => m.kind === 'run')).toMatchObject({ parts: ['x'], textPr: [] });
+    expect(current.log).toEqual([['insert', 1, true]]);
   });
 
   it('inserts a token as plain text', () => {

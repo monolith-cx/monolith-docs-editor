@@ -4,6 +4,11 @@ Durable follow-up log for concrete errors found during sessions and left unresol
 
 ## Unresolved
 
+- [ ] 2026-11-10 13:27 PST - `apps/plugin/commands.js:134,144` (`insertField`) - With the cursor inside an existing field's value, `insertField` nests the new field inside it and splits the old value ("Acme Testing LL" + new field + "C")
+  - Observed via: the editor battery on 10.0.0.1 (DOC-35). E5g records it through the served bridge (`docs/spikes/results/10.0.0.1/2026-11-10-partial-2135.md`), and a probe ran the `origin/main` `insertField` with the same result, so DOC-35 did not cause it. `InsertContent` from a plugin ignores the `contentLocked` lock, as the spike's 9g already found. `insertToken` (line 152) uses the same insert and is presumably affected the same way (not exercised).
+  - Impact: a CRM user who clicks inside a field and inserts another corrupts the outer field's value. CRM's next refresh rewrites the outer `sdtContent`, which drops or misplaces the nested field. Text a user types at the same cursor is refused by the lock, so the failure is only through the panel.
+  - Left unresolved because: outside DOC-35, which must not change the bridge's behaviour beyond formatting. The fix is a refusal in `insertField` and `insertToken` when the cursor is inside a control (for example `GetCurrentRun()`'s parent, or `GetCurrentContentControl`), answering the existing `inside_field` error. It is a protocol-visible change for consumers (`docs/guides/consumer-integration.md`).
+
 - [ ] 2026-11-04 19:38 PST - `apps/api/vitest.config.ts` - `pnpm --filter @monolith-docs/api run test` fails after a local build, because Vitest also runs the compiled `dist/*.test.js`
   - Observed via: the API test run after `pnpm --filter @monolith-docs/api run build` (DOC-23): 36 test files, 6 failed, all under `dist/`. With `dist/` removed: 18 files, all passing.
   - Impact: a false red for a developer who builds before testing. CI is not affected, because it tests before it builds.
